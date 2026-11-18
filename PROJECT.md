@@ -74,7 +74,7 @@ Ostateczna postać reprezentacji pozostaje do ustalenia. Założenie o łatwiejs
 Przewidziane komponenty:
 
 - Model LLM.
-- Model System One, np. rozwiązanie określone w założeniach jako „JEV od TypeSafe AI”.
+- Wymienne modele z Hugging Face uruchamiane lokalnie. Domyślny System One to `Qwen/Qwen3.5-4B` w BF16 lub FP16, a enkoder to `Snowflake/snowflake-arctic-embed-m-v2.0`.
 - Gotowe moduły tradycyjnej naziemnej stacji kontroli.
 
 Dodatkowe moduły tradycyjnej stacji kontroli nie będą implementowane w ramach projektu — mają zostać wykorzystane jako gotowe rozwiązania.
@@ -88,7 +88,62 @@ W pierwszym prototypie stacja naziemna ma przyjmować kolejne wypowiedzi w ramac
 
 Model System One otrzymuje nową wypowiedź wraz z kontekstem rozmowy i aktualną instrukcją. Zwraca proponowaną interpretację jako JSON. Moduł rozmowy waliduje ją względem schematu i hierarchii z §3.1. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Jeśli odniesienie jest niejednoznaczne, czat prosi o doprecyzowanie i zachowuje ostatnią zaakceptowaną interpretację. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
 
-Na potrzeby prototypu wybieramy wariant z §3.3, w którym oddzielny enkoder oblicza embeddingi wskazanych pól tekstowych po walidacji JSON. Wynikowy JSON zachowuje jawne wartości pól i przypisuje wektor do konkretnego pola wraz z identyfikatorem i wersją enkodera oraz wymiarem wektora. Liczby, jednostki i identyfikatory pozostają jawne także po edycji. Dobór modeli i docelowy format transmisji pozostają otwarte.
+Na potrzeby prototypu wybieramy wariant z §3.3, w którym oddzielny enkoder oblicza embeddingi wskazanych pól tekstowych po walidacji JSON. Wynikowy JSON zachowuje jawne wartości pól i przypisuje wektor do konkretnego pola wraz z identyfikatorem i wersją enkodera oraz wymiarem wektora. Liczby, jednostki i identyfikatory pozostają jawne także po edycji. Docelowy format transmisji pozostaje otwarty.
+
+#### Profil przeznaczenia i stan instrukcji
+
+Profil w `configs/nlp/prompts/` ma cztery osobne klucze YAML. Każdy określa źródło tekstu oraz schemat jego interpretacji. Dwie pierwsze treści pochodzą z angielskich wartości domyślnych profilu. Dwie pozostałe uzyskują treść dopiero od operatora. Techniczne wskazówki dla modelu System One dotyczące ekstrakcji pól i formatu JSON są konfiguracją interpretera. Dyrektywa `SYSTEM` jest jedną z danych wejściowych tego interpretera.
+
+Przykładowo dron kartograficzny może mieć przeznaczenie „Document the condition of public green spaces” i domyślną instrukcję „Prepare an overview of the designated park”. Po przyjęciu polecenia „Udokumentuj stan alejek” aktywnym zadaniem staje się dokumentacja alejek. Wypowiedź „Zacznij od alejki przy wejściu” zmienia kolejność wykonania. Po tej zmianie w kontekście nadal można odczytać dosłowną instrukcję „Udokumentuj stan alejek” i pierwotne przeznaczenie drona.
+
+Stan misji przechowuje osobno `SYSTEM`, `GENERAL_INSTRUCTION`, opcjonalną `USER_INSTRUCTION` i bieżące zmiany `USER_PROMPT`. Przy starcie obowiązuje para SYSTEM i GENERAL_INSTRUCTION. Przyjęcie pierwszej instrukcji operatora zastępuje **całe** domyślne zadanie w bieżącej sesji, także gdy operator użył zupełnie innego słownictwa. Plik profilu zachowuje swoją wartość domyślną dla następnej sesji. Podczas wykonania kolejne modyfikacje dotyczą obowiązującego zadania. Wypowiedź sprzeczna z jego celem wymaga wyjaśnienia. Błąd interpretacji lub wektoryzacji pozostawia ostatni przyjęty stan. Pierwszeństwo ścieżki GUI określa §3.2.
+
+Profil opisuje przeznaczenie niezależnie od modelu językowego. Powiązanie profilu z typem UAV pozostaje propozycją. Przed przyjęciem takiego mapowania trzeba ustalić, czy ten sam typ pojazdu będzie pełnił różne role.
+
+#### Proponowany kontrakt pól w YAML
+
+Poniższy przykład definiuje pola semantyczne dla czterech typów. Nazwy i zakres pól to propozycja do sprawdzenia na scenariuszach przed utrwaleniem wersji 1. Każde pole podaje znaczenie, typ, wymagalność i decyzję o wektoryzacji. Typ `text_list` oznacza uporządkowaną listę tekstów.
+
+```yaml
+schema_version: 1
+SYSTEM:
+  source: profile
+  default_text: "Document the condition of public green spaces."
+  fields:
+    purpose: {meaning: "Enduring purpose of the UAV", type: text, required: true, embed: true}
+    scope: {meaning: "Explicit limits of this role", type: text_list, required: false, embed: true}
+GENERAL_INSTRUCTION:
+  source: profile
+  default_text: "Prepare an overview of the designated park."
+  fields:
+    objective: {meaning: "Default task until the operator assigns one", type: text, required: true, embed: true}
+    subjects: {meaning: "Subjects or areas named in the task", type: text_list, required: false, embed: true}
+    constraints: {meaning: "Explicit conditions on execution", type: text_list, required: false, embed: true}
+USER_INSTRUCTION:
+  source: operator
+  default_text: null
+  fields:
+    objective: {meaning: "Task assigned by the operator", type: text, required: true, embed: true}
+    subjects: {meaning: "Subjects or areas named in the task", type: text_list, required: false, embed: true}
+    constraints: {meaning: "Explicit conditions on execution", type: text_list, required: false, embed: true}
+USER_PROMPT:
+  source: operator
+  default_text: null
+  fields:
+    change: {meaning: "Requested change to execution of the active task", type: text, required: true, embed: true}
+    applies_to: {meaning: "Part of the task affected by the change", type: text, required: false, embed: true}
+```
+
+Stacja wyznacza typ z kontekstu sesji i źródła wejścia. Dla każdego tekstu, również obu domyślnych przy inicjalizacji, System One otrzymuje właściwy schemat i wypełnia tylko wymienione pola. Brak opcjonalnej wartości oznacza pominięcie pola. Brak wymaganej wartości lub niejednoznaczne odniesienie wymaga wyjaśnienia. NLP sprawdza klucze i typy przed uruchomieniem enkodera. Dla każdej obecnej wartości z `embed: true` enkoder wylicza osobny wektor, a w przypadku listy po jednym wektorze na element. Wynik zawiera wersję schematu, typ promptu, jawne pola i embeddingi powiązane ze ścieżką pola oraz indeksem elementu listy. Typ, wersje i indeksy nadaje aplikacja.
+
+#### Etapy implementacji na stacji
+
+1. **Profile i kontrakty.** Zdefiniować cztery sekcje YAML, sprawdzić zaproponowane pola na kilku przeznaczeniach UAV i rozmowach z §3.5. Kryterium odbioru stanowi wczytanie innego profilu bez zmian kodu oraz wykrycie brakującej definicji pola.
+2. **Hierarchia w domenie misji.** Przetestować start bez operatora, zastąpienie całego domyślnego zadania pierwszą instrukcją i dwie kolejne zmiany wykonania. Po obu zmianach odczyt nadrzędnej instrukcji ma zwracać tę samą treść.
+3. **Interpretacja w module `nlp`.** Podłączyć System One przez port interpretacji, walidować JSON dla każdego typu i obsłużyć doprecyzowanie. Test z atrapą obejmuje także oba teksty z profilu, dodatkowy klucz i niejednoznaczną zmianę.
+4. **Wektoryzacja w module `nlp`.** Podłączyć osobny enkoder i powiązać każdy wektor z jawną wartością. Sprawdzić kolejność elementów listy, pominięcie pustych pól opcjonalnych oraz zachowanie sesji po błędzie enkodera.
+5. **Osobny moduł `communication_cli`.** Operator wpisuje tekst na stacji i widzi przyjęty JSON albo pytanie. CLI przekazuje wypowiedź do tej samej sesji NLP i wyświetla wynik. Reguły hierarchii należą do domeny misji, obsługa modeli do NLP, a transmisja stacja–pokład do modułu `communication`. Test wejścia i wyjścia terminala ma obejmować pierwszą instrukcję i modyfikację podczas misji.
+6. **Odtwarzanie i odbiór.** Podłączyć scenariusze YAML do tego samego przypadku użycia co CLI. Porównać wyniki po każdej turze według kryterium poniżej, a jakość ekstrakcji rzeczywistych modeli ocenić osobno na parafrazach.
 
 #### Plan katalogu scenariuszy
 
@@ -265,10 +320,11 @@ Moduł rozmowy operatora opisany w §3.5 będzie rozwijany w tym repozytorium ja
 
 | Ścieżka | Odpowiedzialność |
 | --- | --- |
-| `src/uav_onboard_planner/ground_station/` | Obsługa sesji rozmowy, walidacja interpretacji poleceń, adaptery System One i enkodera oraz oba wejścia do sesji (CLI i odtwarzacz YAML). |
-| `configs/ground_station/` | Konfiguracja adapterów modeli używanych przez stację naziemną. |
+| `src/uav_onboard_planner/nlp/` | Przetwarzanie sesji na stacji, interpretacja tekstów, walidacja pól, adaptery System One i enkodera. |
+| `src/uav_onboard_planner/communication_cli/` | Terminal operatora przekazujący treść promptów do sesji NLP. |
+| `configs/nlp/` | Profile przeznaczenia i schematy w `prompts/`, ustawienia modeli i kontekstu w `systemone/` i `embeddings/`. |
 | `scenarios/` | Wersjonowane rozmowy operatora, ich warianty i oczekiwane wyniki opisane w §3.5. |
-| `tests/ground_station/` | Testy interpretacji i edycji poleceń oraz zgodności obu wejść do sesji. |
+| `tests/nlp/`, `tests/communication_cli/` | Testy interpretacji, wektoryzacji, interakcji w terminalu i zgodności ze scenariuszami. |
 
 - Priorytetem jest poprawność implementacji.
 - Logika poszczególnych modułów jest rozdzielona.
@@ -300,7 +356,7 @@ Pozostałe wymagania dotyczące CI nie zostały określone w pierwotnych założ
 Poniższe kwestie wynikają z alternatyw lub niedoprecyzowanych punktów powyższych założeń:
 
 - Ostateczna reprezentacja i format przesyłania poleceń NLP.
-- Konkretny LLM i model System One.
+- Dobór docelowych modeli po ocenie jakości i opóźnienia modeli prototypu z §3.4.
 - Konkretny model decyzyjny i sposób realizacji wymagań dotyczących przestrzeni działania oraz czasu ciągłego.
 - Konkretny symulator i szczegóły treningu.
 - Konkretny darmowy wariant YOLO oraz ewentualny lekki model wizyjno-językowy.
@@ -336,7 +392,7 @@ Drzewo pokazuje pliki istotne dla architektury. Obecne punkty wejścia i adapter
 │   ├── scenarios/survey.yaml          obsada, harmonogram, kryteria końca
 │   ├── vehicles/quadrotor.yaml        typ pojazdu, model dynamiki i możliwości
 │   ├── sensors/survey.yaml            wyposażenie, częstotliwości, opóźnienia
-│   ├── ground_station/local.yaml      adapter wejścia operatora i interpretacji
+│   ├── nlp/                           profile promptów i ustawienia obu modeli
 │   ├── perception/default.yaml        wersje modeli i ich wejścia
 │   ├── decision/default.yaml          wariant inferencji i budżet obliczeń
 │   └── training/baseline.yaml         zbiory scenariuszy, ziarna, warunki oceny
@@ -345,10 +401,9 @@ Drzewo pokazuje pliki istotne dla architektury. Obecne punkty wejścia i adapter
 │   │   ├── instructions.py            hierarchia instrukcji i aktualny kontekst
 │   │   ├── commands.py                typowane polecenia i ich pochodzenie
 │   │   └── execution.py               przebieg misji, zmiana trasy, anulowanie
-│   ├── ground_station/
-│   │   ├── operator.py                przyjęcie polecenia GUI lub tekstu
-│   │   ├── interpretation.py          port interpretacji tekstu i System One
-│   │   └── adapters/                  połączenie z gotową stacją, GUI i LLM
+│   ├── ground_station/                integracja z gotową stacją i jej GUI
+│   ├── nlp/                           interpretacja tekstu i wektoryzacja pól
+│   ├── communication_cli/             wprowadzanie promptów na terminalu stacji
 │   ├── communication/
 │   │   ├── messages.py                wersja wiadomości, adresat, identyfikatory
 │   │   └── adapters/                  kodowanie i transport wiadomości
