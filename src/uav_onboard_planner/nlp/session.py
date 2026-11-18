@@ -1,4 +1,6 @@
 import json
+from collections.abc import Iterator
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from math import isfinite
 from types import MappingProxyType
@@ -10,10 +12,28 @@ from ..mission.instructions import (
     InstructionType,
     Mission,
     OperatorInstruction,
+    TextValue,
 )
 from .config import PromptProfile, parse_fields
 
 type Vector = tuple[float, ...]
+type VectorValue = Vector | tuple[Vector, ...]
+type FieldVectors = VectorValue | dict[str, VectorValue]
+
+
+def _texts(value: FieldValue) -> Iterator[str]:
+    parts = value.values() if isinstance(value, dict) else (value,)
+    for part in parts:
+        if isinstance(part, str):
+            yield part
+        else:
+            yield from part
+
+
+def _vectors(value: TextValue, vectors: Iterator[Vector]) -> VectorValue:
+    if isinstance(value, str):
+        return next(vectors)
+    return tuple(next(vectors) for _ in value)
 
 
 @dataclass(frozen=True)
@@ -43,7 +63,7 @@ class Reply:
     question: str | None = None
     schema_version: int = 1
     draft: dict[str, FieldValue] | None = None
-    vectors_by_field: dict[str, Vector | tuple[Vector, ...]] | None = None
+    vectors_by_field: dict[str, FieldVectors] | None = None
 
     def to_json(self) -> str:
         data: dict[str, object] = {"schema_version": self.schema_version}
@@ -96,7 +116,6 @@ class Session:
         self._original_instruction: str | None = None
         self._sites: tuple[str, ...] = ()
         self.mission: Mission | None = None
-        self.initial: tuple[Reply, ...] = ()
         if profile is not None:
             system = profile.prompts["SYSTEM"]
             general = profile.prompts["GENERAL_INSTRUCTION"]
@@ -104,11 +123,11 @@ class Session:
             self.mission = Mission(
                 Instruction(
                     system.default_text,
-                    MappingProxyType(dict(system.default_fields or {})),
+                    MappingProxyType(deepcopy(system.default_fields or {})),
                 ),
                 Instruction(
                     general.default_text,
-                    MappingProxyType(dict(general.default_fields or {})),
+                    MappingProxyType(deepcopy(general.default_fields or {})),
                 ),
             )
 
@@ -205,7 +224,7 @@ class Session:
             return self._ask(text, reply.question)
         assert reply.draft is not None
         original = self._clarification[0] if self._clarification else text
-        mission.accept(Instruction(original, MappingProxyType(reply.draft.copy())))
+        mission.accept(Instruction(original, MappingProxyType(deepcopy(reply.draft))))
         self._clarification = ()
         return reply
 
@@ -247,18 +266,18 @@ class Session:
             item
             for name, value in draft.items()
             if prompt.fields[name].embed
-            for item in ((value,) if isinstance(value, str) else value)
+            for item in _texts(value)
         )
         embeddings = self._encode(texts) if texts else None
-        vectors_by_field: dict[str, Vector | tuple[Vector, ...]] = {}
+        vectors_by_field: dict[str, FieldVectors] = {}
         if embeddings is not None:
             vectors = iter(embeddings.vectors)
             for name, value in draft.items():
                 if prompt.fields[name].embed:
                     vectors_by_field[name] = (
-                        next(vectors)
-                        if isinstance(value, str)
-                        else tuple(next(vectors) for _ in value)
+                        {role: _vectors(part, vectors) for role, part in value.items()}
+                        if isinstance(value, dict)
+                        else _vectors(value, vectors)
                     )
         sites = draft.get("sites")
         return Reply(

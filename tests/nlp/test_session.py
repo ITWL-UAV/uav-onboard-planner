@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from uav_onboard_planner.nlp.config import SystemOneConfig, load_system_prompt
+from uav_onboard_planner.nlp.config import SystemOneConfig, load_prompt
 from uav_onboard_planner.nlp.session import Embeddings, Session
 
 
@@ -76,7 +76,7 @@ def test_system_one_profile_accepts_fp16_and_rejects_invalid_context(
     prompt.write_text("system: Draft an inspection.\n", encoding="utf-8")
     config = SystemOneConfig.load(profile)
     assert config.dtype == "float16"
-    assert load_system_prompt(config.prompt_file) == "Draft an inspection."
+    assert load_prompt(config.prompt_file) == "Draft an inspection."
     profile.write_text(settings.replace("256", "64"), encoding="utf-8")
     with pytest.raises(ValueError, match="context_size"):
         SystemOneConfig.load(profile)

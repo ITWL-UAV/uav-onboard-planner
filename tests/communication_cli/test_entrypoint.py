@@ -39,12 +39,15 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
                 [
                     {"question": "Który dach?"},
                     {
-                        "objective": "Inspect roof A",
-                        "sites": ["dach A"],
+                        "activity": "inspect",
+                        "target": {"sites": ["dach A"]},
                         "constraints": ["Zachowaj odległość 3 m."],
                     },
-                    {"change": "Begin with gutters", "sites": ["dach A"]},
-                    {"change": "Begin with the facade", "sites": ["dach A"]},
+                    {"change": "Begin with gutters", "target": {"sites": ["dach A"]}},
+                    {
+                        "change": "Begin with the facade",
+                        "target": {"sites": ["dach A"]},
+                    },
                 ]
             )
 
@@ -53,27 +56,22 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
             assert "expected" not in request
             assert request["instruction"] in ("USER_INSTRUCTION", "USER_PROMPT")
             assert request["system"] == {
-                "text": "Serve as a civilian platform for aerial inspection of building exteriors.",
+                "text": "Support civilian aerial observation, inspection, and cargo transport.",
                 "fields": {
-                    "purpose": "Serve as a civilian platform for aerial inspection of building exteriors."
+                    "purpose": "Support civilian aerial observation, inspection, and cargo transport."
                 },
             }
             if request["instruction"] == "USER_INSTRUCTION":
                 active = request["active_instruction"]
-                assert active["text"].startswith("Survey the designated area")
                 assert active["fields"] == {
-                    "objective": active["text"],
-                    "sites": ["designated area"],
+                    "activity": "observe",
+                    "target": {"area": "designated area"},
                     "constraints": [],
                 }
-                assert (
-                    "specific exterior inspection task or outcome"
-                    in (request["fields"]["objective"]["question"])
-                )
             else:
                 assert request["active_instruction"]["fields"] == {
-                    "objective": "Inspect roof A",
-                    "sites": ["dach A"],
+                    "activity": "inspect",
+                    "target": {"sites": ["dach A"]},
                     "constraints": ["Zachowaj odległość 3 m."],
                 }
             assert all(
@@ -83,7 +81,7 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
                 for field in request["fields"].values()
             )
             assert request["fields"]["constraints"]["required"] is False
-            assert request["fields"]["sites"]["type"] == "text_list"
+            assert request["fields"]["target"]["type"] == "text_map"
             return next(self.responses)
 
     class Encoder:
@@ -107,6 +105,7 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
         for line in replay_out.getvalue().splitlines()
     ] == [None, "USER_INSTRUCTION", "USER_PROMPT", "USER_PROMPT"]
     first = json.loads(replay_out.getvalue().splitlines()[1])
+    assert first["embeddings"]["fields"]["target"] == {"sites": [[1.0]]}
     assert first["draft"]["constraints"] == ["Zachowaj odległość 3 m."]
     assert first["embeddings"]["fields"]["constraints"] == [[1.0]]
     record = json.loads(metadata.getvalue())

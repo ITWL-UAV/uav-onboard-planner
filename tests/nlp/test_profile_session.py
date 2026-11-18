@@ -10,20 +10,20 @@ from uav_onboard_planner.nlp.session import Embeddings, Session
 def test_general_defaults_must_match_the_user_instruction_schema(
     tmp_path: Path,
 ) -> None:
-    template = Path("configs/nlp/prompts/inspection_template.yaml")
+    template = Path("configs/nlp/prompts/uav_general_template.yaml")
     path = tmp_path / template.name
     path.write_text(
         template.read_text(encoding="utf-8").replace(
-            "sites: [designated area]", "sites: []"
+            "target: {area: designated area}", "target: {}"
         ),
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match=r"GENERAL_INSTRUCTION\.fields.*sites"):
+    with pytest.raises(ValueError, match=r"GENERAL_INSTRUCTION\.fields.*target"):
         load_prompt(path)
 
 
 def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
-    template = Path("configs/nlp/prompts/inspection_template.yaml")
+    template = Path("configs/nlp/prompts/uav_general_template.yaml")
     path = tmp_path / template.name
     path.write_text(
         template.read_text(encoding="utf-8").replace(
@@ -33,6 +33,43 @@ def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match=r"USER_INSTRUCTION\.required"):
         load_prompt(path)
+
+
+def test_transport_embeds_cargo_and_destination_by_role() -> None:
+    profile = load_prompt(Path("configs/nlp/prompts/uav_general_template.yaml"))
+    responses = iter(
+        [
+            {
+                "activity": "transport",
+                "target": {"cargo": ["crate A"], "destination": 2},
+            },
+            {
+                "activity": "transport",
+                "target": {"cargo": "crate A", "destination": "point B"},
+            },
+        ]
+    )
+
+    class Interpreter:
+        def interpret(self, context: str) -> object:
+            return next(responses)
+
+    class Encoder:
+        def encode(self, texts: tuple[str, ...]) -> Embeddings:
+            assert texts == ("transport", "crate A", "point B")
+            return Embeddings("encoder", "v1", ((1.0,), (2.0,), (3.0,)))
+
+    session = Session(Interpreter(), Encoder(), profile)
+    with pytest.raises(ValueError, match="target.*destination"):
+        session.submit("Deliver crate A to point B.")
+    assert session.user_instruction is None
+
+    reply = json.loads(session.submit("Deliver crate A to point B.").to_json())
+    assert reply["draft"]["target"] == {"cargo": "crate A", "destination": "point B"}
+    assert reply["embeddings"]["fields"]["target"] == {
+        "cargo": [2.0],
+        "destination": [3.0],
+    }
 
 
 def test_profile_drives_hierarchy_and_validates_before_encoding(tmp_path: Path) -> None:
@@ -97,7 +134,6 @@ USER_PROMPT:
     session = Session(Interpreter(), Encoder(), profile)
     assert contexts == []
     assert batches == []
-    assert session.initial == ()
     assert session.mission.active.text == "Survey the trees."
     assert session.mission.active.fields == {}
 

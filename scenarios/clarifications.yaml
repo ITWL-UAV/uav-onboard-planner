@@ -6,12 +6,12 @@ roof-selection:
     expected: true
   - time: 2
     text: Chodzi o dach A.
-    expected: {sites: [dach A]}
+    expected: {activity: inspect, target: {sites: [dach A]}}
   - time: 6
     text:
       - Udokumentuj najpierw stan rynien dachu A.
       - Zacznij od sprawdzenia rynien w obrębie dachu A.
-    expected: {sites: [dach A]}
+    expected: {target: {sites: [dach A]}}
   - time: 9
     text: Obejrzyj dach A z każdej strony.
-    expected: {sites: [dach A]}
+    expected: {target: {sites: [dach A]}}

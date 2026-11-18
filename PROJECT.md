@@ -61,7 +61,7 @@ Rozważane są następujące reprezentacje:
 | Reprezentacja | Założenie lub motywacja |
 | --- | --- |
 | Embeddingi, czyli wektory | Punktem wyjścia jest założenie, że wektor będzie łatwiej przesłać. |
-| JSON z wektoryzacją pól | Alternatywa wynikająca z obawy o utratę informacji przy reprezentacji wektorowej. Polecenie operatora jest zamieniane przez model System One na JSON, a wartości jego pól są wektoryzowane. |
+| JSON z wektoryzacją pól | Alternatywa wynikająca z obawy o utratę informacji przy reprezentacji wektorowej. Aplikacja składa JSON z odpowiedzi tekstowych System One, a wartości jego pól są wektoryzowane. |
 
 Ostateczna postać reprezentacji pozostaje do ustalenia. Założenie o łatwiejszym przesyłaniu wektorów i możliwość utraty informacji nie są tutaj traktowane jako potwierdzone wyniki.
 
@@ -86,13 +86,13 @@ W pierwszym prototypie stacja naziemna ma przyjmować kolejne wypowiedzi w ramac
 - **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Zaplanuj inspekcję dachów A i B” może wpisać „Jednak pomiń drugi dach”. CLI pokazuje zaktualizowaną treść polecenia lub pytanie o doprecyzowanie. W demonstracji można również obejrzeć JSON zawierający embeddingi.
 - **Scenariusz YAML.** Odtwarzacz podaje wypowiedzi do tego samego modułu rozmowy w kolejności i chwilach zdefiniowanych w scenariuszu. Czas liczy się od początku epizodu według zegara symulacji. Odtwarzacz przekazuje oryginalny tekst, dzięki czemu test obejmuje również jego interpretację.
 
-Model System One otrzymuje nową wypowiedź wraz z kontekstem rozmowy i aktualną instrukcją. Zwraca proponowaną interpretację jako JSON. Moduł rozmowy waliduje ją względem schematu i hierarchii z §3.1. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Jeśli odniesienie jest niejednoznaczne, czat prosi o doprecyzowanie i zachowuje ostatnią zaakceptowaną interpretację. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
+System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Zwraca odpowiedzi tekstowe. Moduł rozmowy sprawdza je względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Jeśli odniesienie jest niejednoznaczne, czat prosi o doprecyzowanie i zachowuje ostatnią zaakceptowaną interpretację. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
 
 Na potrzeby prototypu wybieramy wariant z §3.3, w którym oddzielny enkoder oblicza embeddingi wskazanych pól tekstowych po walidacji JSON. Wynikowy JSON zachowuje jawne wartości pól i przypisuje wektor do konkretnego pola wraz z identyfikatorem i wersją enkodera oraz wymiarem wektora. Liczby, jednostki i identyfikatory pozostają jawne także po edycji. Docelowy format transmisji pozostaje otwarty.
 
 #### Profil przeznaczenia i stan instrukcji
 
-Profil w `configs/nlp/prompts/` ma cztery klucze typów instrukcji. Każdy określa źródło tekstu. Dwie pierwsze treści pochodzą z angielskich wartości domyślnych profilu. Dwie pozostałe uzyskują treść dopiero od operatora. Każdy typ instrukcji operatora ma własny blok pól do ekstrakcji, obejmujący także ograniczenia. Techniczne wskazówki dotyczące formatu JSON są konfiguracją interpretera.
+Profil w `configs/nlp/prompts/` ma cztery klucze typów instrukcji. Każdy określa źródło tekstu. Dwie pierwsze treści pochodzą z angielskich wartości domyślnych profilu. Dwie pozostałe uzyskują treść dopiero od operatora. Każdy typ instrukcji operatora ma własny blok pytań o pola, obejmujący także ograniczenia.
 
 Przykładowo dron kartograficzny może mieć przeznaczenie „Document the condition of public green spaces” i domyślną instrukcję „Prepare an overview of the designated park”. Po przyjęciu polecenia „Udokumentuj stan alejek” aktywnym zadaniem staje się dokumentacja alejek. Wypowiedź „Zacznij od alejki przy wejściu” zmienia kolejność wykonania. Po tej zmianie w kontekście nadal można odczytać dosłowną instrukcję „Udokumentuj stan alejek” i pierwotne przeznaczenie drona.
 
@@ -102,7 +102,7 @@ Profil opisuje przeznaczenie niezależnie od modelu językowego. Powiązanie pro
 
 #### Proponowany kontrakt pól w YAML
 
-Poniższy przykład pokazuje gotowe wartości w `fields` dla `SYSTEM` i `GENERAL_INSTRUCTION` oraz pytania do System One w `fields` dla typów od operatora. `GENERAL_INSTRUCTION` używa pól z `USER_INSTRUCTION`. Domyślna lista wskazuje, że pole o tej nazwie oczekuje uporządkowanej listy tekstów. Pozostałe pola operatora oczekują pojedynczego tekstu. Mapa `required` określa wymagalność każdego pola operatora.
+Poniższy przykład pokazuje gotowe wartości w `fields` dla `SYSTEM` i `GENERAL_INSTRUCTION` oraz pytania do System One w `fields` dla typów od operatora. `GENERAL_INSTRUCTION` używa pól z `USER_INSTRUCTION`. Domyślna wartość określa typ pola o tej nazwie w instrukcjach operatora. Mapa `required` określa wymagalność każdego pola operatora.
 
 ```yaml
 schema_version: 1
@@ -113,28 +113,28 @@ SYSTEM:
 GENERAL_INSTRUCTION:
   source: profile
   fields:
-    objective: Prepare an overview of the designated park.
-    subjects: [designated park]
+    activity: observe
+    target: {area: designated park}
     constraints: []
 USER_INSTRUCTION:
   source: operator
   fields:
-    objective: What specific task or outcome did the operator request for this mission?
-    subjects: Which subjects or areas did the operator name?
+    activity: What action did the operator request?
+    target: What subjects or areas does the action concern?
     constraints: What explicit conditions did the operator specify?
   required:
-    objective: true
-    subjects: false
+    activity: true
+    target: true
     constraints: false
 USER_PROMPT:
   source: operator
   fields:
     change: What change to the active task did the operator request?
-    applies_to: What part of the task does the change affect?
+    target: What is the complete target map after the change?
     constraints: What changes to the constraints did the operator request?
   required:
     change: true
-    applies_to: false
+    target: true
     constraints: false
 ```
 
@@ -144,7 +144,7 @@ Stacja przyjmuje `SYSTEM` i `GENERAL_INSTRUCTION` jako gotowy kontekst. Dla wypo
 
 1. **Profile i kontrakty.** Zdefiniować cztery sekcje YAML, sprawdzić zaproponowane pola na kilku przeznaczeniach UAV i rozmowach z §3.5. Kryterium odbioru stanowi wczytanie innego profilu bez zmian kodu oraz wykrycie brakującej definicji pola.
 2. **Hierarchia w domenie misji.** Przetestować start bez operatora, zastąpienie całego domyślnego zadania pierwszą instrukcją i dwie kolejne zmiany wykonania. Po obu zmianach odczyt nadrzędnej instrukcji ma zwracać tę samą treść.
-3. **Interpretacja w module `nlp`.** Podłączyć System One przez port interpretacji, walidować JSON przy ekstrakcji i obsłużyć doprecyzowanie. Test z atrapą obejmuje wczytanie predefiniowanego kontekstu bez wywołania modelu, dodatkowy klucz i niejednoznaczną zmianę.
+3. **Interpretacja w module `nlp`.** Podłączyć System One przez port interpretacji, walidować odpowiedzi tekstowe i obsłużyć doprecyzowanie. Test z atrapą obejmuje wczytanie predefiniowanego kontekstu bez wywołania modelu, dodatkowy klucz i niejednoznaczną zmianę.
 4. **Wektoryzacja w module `nlp`.** Podłączyć osobny enkoder i powiązać każdy wektor z jawną wartością. Sprawdzić kolejność elementów listy, pominięcie pustych pól opcjonalnych oraz zachowanie sesji po błędzie enkodera.
 5. **Osobny moduł `communication_cli`.** Operator wpisuje tekst na stacji i widzi przyjęty JSON albo pytanie. CLI przekazuje wypowiedź do tej samej sesji NLP i wyświetla wynik. Reguły hierarchii należą do domeny misji, obsługa modeli do NLP, a transmisja stacja–pokład do modułu `communication`. Test wejścia i wyjścia terminala ma obejmować pierwszą instrukcję i modyfikację podczas misji.
 6. **Odtwarzanie i odbiór.** Podłączyć scenariusze YAML do tego samego przypadku użycia co CLI. Porównać wyniki po każdej turze według kryterium poniżej, a jakość ekstrakcji rzeczywistych modeli ocenić osobno na parafrazach.

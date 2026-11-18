@@ -7,6 +7,7 @@ from sys import float_info
 from typing import Literal
 
 from ..mission.instructions import FieldValue
+from .config import parse_text_map
 from .session import Reply, Session
 
 
@@ -51,6 +52,13 @@ def _expected(
             isinstance(item, str) and item.strip() for item in field
         ):
             fields[name] = tuple(field)
+        elif isinstance(field, dict):
+            try:
+                fields[name] = parse_text_map(field)
+            except ValueError as error:
+                raise ValueError(
+                    f"{label}: invalid expected field {name}: {error}"
+                ) from error
         else:
             raise ValueError(f"{label}: invalid expected field {name}")
     return fields

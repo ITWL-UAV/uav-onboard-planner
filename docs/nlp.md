@@ -1,9 +1,9 @@
 # CLI interpretacji poleceń
 
-Pakiet `uav_onboard_planner.nlp` przekształca tekst operatora w podgląd
-szkicu cywilnej inspekcji budynków. Model System One zwraca listę miejsc
-albo pytanie o doprecyzowanie. Dla zaakceptowanego szkicu osobny model
-oblicza jeden embedding na każde miejsce.
+Pakiet `uav_onboard_planner.nlp` przekształca tekst operatora w szkic
+cywilnej misji drona. System One odpowiada tekstowo na pytania o pola
+misji. Aplikacja waliduje odpowiedzi, składa z nich JSON i przekazuje
+wartości tekstowe do osobnego modelu embeddingów.
 
 ## Uruchomienie
 
@@ -29,7 +29,7 @@ Face. Oba modele działają na urządzeniu wskazanym w ich profilach.
 | --- | --- |
 | [System One](../configs/nlp/systemone/default.ini) | Identyfikator modelu z Hugging Face, rewizja, urządzenie, precyzja `bfloat16` lub `float16`, łączny limit tokenów wejścia i generacji, limit generacji, ścieżka promptu. |
 | [Embeddingi](../configs/nlp/embeddings/default.ini) | Model i rewizja, urządzenie, precyzja, limit tokenów na tekst, rozmiar partii, pooling i normalizacja. |
-| [Profil przeznaczenia](../configs/nlp/prompts/inspection_template.yaml) | Teksty domyślne i schematy pól dla czterech typów instrukcji. Ścieżka w profilu System One jest względna wobec tego profilu. |
+| [Profil ogólny UAV](../configs/nlp/prompts/uav_general_template.yaml) | Teksty domyślne i pytania dla czterech typów instrukcji. Ścieżka w profilu System One jest względna wobec tego profilu. |
 
 Profil można podmienić przez `--systemone-config` albo `--embedding-config`.
 Ustawienie `device = auto` wybiera CUDA, MPS lub CPU w tej kolejności.
@@ -45,29 +45,31 @@ tokenów. Sprawdź wymagane pooling i normalizację na karcie wybranego modelu.
 
 ## Wynik
 
-Sesja wczytuje `SYSTEM` i `GENERAL_INSTRUCTION` bez wywołania modeli.
+Sesja wczytuje `SYSTEM` i `GENERAL_INSTRUCTION` bez interpretacji i wektoryzacji.
 `SYSTEM` jest dosłownym kontekstem przeznaczenia drona. Domyślne zadanie
-inspekcyjne obejmuje rozpoznanie wyznaczonego obszaru i udokumentowanie
-widocznego stanu zewnętrznego budynków. Pierwsza przyjęta wypowiedź staje
+polega na obserwowaniu wyznaczonego obszaru. Pierwsza przyjęta wypowiedź staje
 się `USER_INSTRUCTION` i zastępuje całe domyślne zadanie.
 Kolejne wypowiedzi stają się zmianami `USER_PROMPT`. Sesja przekazuje
 modelowi pierwotne polecenie, zaakceptowane zmiany i oczekujące doprecyzowanie.
 Pytanie o doprecyzowanie pozostawia zaakceptowany stan i nie wywołuje enkodera.
 
 Szkic zawiera `schema_version`, `instruction` oraz jawne pola w `draft`.
-W szablonie inspekcji wszystkie wyodrębnione wartości są wektoryzowane.
-Zawiera identyfikator modelu, rewizję, wymiar i wektory według nazw pól.
-Pole tekstowe dostaje jeden wektor. Dla listy tekstów, np. `draft.sites`,
-`embeddings.fields.sites` zachowuje kolejność elementów. W profilu inspekcji
-nakładane ograniczenia zachowują zapisane liczby i jednostki w jawnej treści.
+`USER_INSTRUCTION` ma wymagane `activity` i `target` oraz opcjonalną listę
+`constraints`. `USER_PROMPT` ma `change`, zaktualizowany `target`
+i opcjonalne zmiany ograniczeń. `target` jest mapą, np.
+`{area: las}`, `{direction: zachód}` albo `{cargo: skrzynia A, destination: punkt B}`.
 
-Aby dodać profil, zdefiniuj cztery typy instrukcji jak w przykładzie
-inspekcji. W `fields` sekcji `SYSTEM` i `GENERAL_INSTRUCTION` wpisz
+`embeddings` podaje identyfikator modelu, rewizję, wymiar i wektory
+według nazw pól. Dla mapy `target` wektory zachowują klucze mapy, a dla
+listy tekstów zachowują kolejność elementów.
+
+Aby dodać profil, zdefiniuj cztery typy instrukcji jak w profilu ogólnym.
+W `fields` sekcji `SYSTEM` i `GENERAL_INSTRUCTION` wpisz
 gotowe wartości. W sekcjach operatora pod `fields` wpisz pytanie do
 System One dla każdego pola. Mapa `required` podaje osobną wartość
-`true` lub `false` dla każdego z nich. Lista w domyślnych wartościach
-`GENERAL_INSTRUCTION` określa pole listowe także w obu instrukcjach
-operatora. Pozostałe pola operatora są tekstowe. Można nadal wczytać
+`true` lub `false` dla każdego z nich. Lista lub mapa w wartościach
+`GENERAL_INSTRUCTION` określa też typ pola o tej nazwie w instrukcjach
+operatora. Pozostałe pola są tekstowe. Można nadal wczytać
 starsze profile z `default_text` albo pojedynczym kluczem `system`.
 
 ## Odtwarzanie scenariusza

@@ -1,0 +1,35 @@
+schema_version: 1
+
+SYSTEM:
+  source: profile
+  fields:
+    purpose: Support civilian aerial observation, inspection, and cargo transport.
+
+GENERAL_INSTRUCTION:
+  source: profile
+  fields:
+    activity: observe
+    target: {area: designated area}
+    constraints: []
+
+USER_INSTRUCTION:
+  source: operator
+  fields:
+    activity: What action did the operator request, expressed as a short English verb such as observe, inspect, fly, or transport?
+    target: What does the action concern, expressed as a map with direction, area, an ordered list of inspection sites, or cargo and destination as applicable?
+    constraints: What constraints did the operator explicitly specify, including any numbers and units?
+  required:
+    activity: true
+    target: true
+    constraints: false
+
+USER_PROMPT:
+  source: operator
+  fields:
+    change: What adjustment to the execution of the active mission did the operator request?
+    target: What is the complete target map after applying the requested edit to the latest accepted target, preserving entries and list order unless the operator changes them?
+    constraints: What changes to the constraints did the operator explicitly request, including any numbers and units?
+  required:
+    change: true
+    target: true
+    constraints: false

@@ -3,17 +3,17 @@ change-order:
     text:
       - Obejrzyj dach A, dach B i dach C.
       - Zaplanuj inspekcję w kolejności dach A, dach B, dach C.
-    expected: {sites: [dach A, dach B, dach C]}
+    expected: {activity: inspect, target: {sites: [dach A, dach B, dach C]}}
   - time: 4
     text:
       - Zacznij od ostatniego.
       - Przesuń trzeci dach na początek.
-    expected: {sites: [dach C, dach A, dach B]}
+    expected: {target: {sites: [dach C, dach A, dach B]}}
   - time: 8
     text:
       - Pomiń dach A.
       - Zrezygnuj z inspekcji dachu A.
-    expected: {sites: [dach C, dach B]}
+    expected: {target: {sites: [dach C, dach B]}}
   - time: 12
     text: Zamień kolejność pozostałych.
-    expected: {sites: [dach B, dach C]}
+    expected: {target: {sites: [dach B, dach C]}}

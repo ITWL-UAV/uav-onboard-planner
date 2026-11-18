@@ -45,7 +45,7 @@ Edit the YAML to change the aircraft, routes, timing, and animation settings.
 See [docs/simulation.md](docs/simulation.md) for the configuration contract,
 adapter boundaries, licenses, and simulation limitations.
 
-## NLP inspection drafts
+## NLP mission drafts
 
 ```sh
 uv sync --extra nlp

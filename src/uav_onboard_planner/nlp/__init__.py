@@ -1,1 +1,1 @@
-"""Prepare and vectorize inspection drafts from operator conversations."""
+"""Interpret and vectorize mission drafts from operator conversations."""

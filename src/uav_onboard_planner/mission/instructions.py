@@ -6,7 +6,9 @@ type InstructionType = Literal[
     "SYSTEM", "GENERAL_INSTRUCTION", "USER_INSTRUCTION", "USER_PROMPT"
 ]
 type OperatorInstruction = Literal["USER_INSTRUCTION", "USER_PROMPT"]
-type FieldValue = str | tuple[str, ...]
+type TextValue = str | tuple[str, ...]
+type TextMap = dict[str, TextValue]
+type FieldValue = TextValue | TextMap
 
 
 @dataclass(frozen=True)

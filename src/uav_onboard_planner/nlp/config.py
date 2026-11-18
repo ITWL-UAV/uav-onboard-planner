@@ -4,7 +4,12 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal, Self
 
-from ..mission.instructions import FieldValue, InstructionType, OperatorInstruction
+from ..mission.instructions import (
+    FieldValue,
+    InstructionType,
+    OperatorInstruction,
+    TextMap,
+)
 
 
 @dataclass(frozen=True)
@@ -92,10 +97,6 @@ class EmbeddingConfig(ModelConfig):
         )
 
 
-def load_system_prompt(path: Path) -> str:
-    return _legacy_prompt(path, _load_prompt_yaml(path))
-
-
 def _load_prompt_yaml(path: Path) -> object:
     import yaml
 
@@ -119,7 +120,7 @@ def _legacy_prompt(path: Path, data: object) -> str:
 @dataclass(frozen=True)
 class Field:
     question: str
-    type: Literal["text", "text_list"]
+    type: Literal["text", "text_list", "text_map"]
     required: bool
     embed: bool
 
@@ -137,6 +138,26 @@ class PromptProfile:
     prompts: dict[InstructionType, Prompt]
 
 
+def parse_text_map(data: object) -> TextMap:
+    if not isinstance(data, dict) or any(
+        not isinstance(name, str) or not name.strip() for name in data
+    ):
+        raise ValueError("oczekiwano mapy z nazwanymi polami tekstowymi")
+    values: TextMap = {}
+    for name, value in data.items():
+        if isinstance(value, str) and value.strip():
+            values[name] = value.strip()
+        elif (
+            isinstance(value, list)
+            and value
+            and all(isinstance(item, str) and item.strip() for item in value)
+        ):
+            values[name] = tuple(item.strip() for item in value)
+        else:
+            raise ValueError(f"nieprawidłowa wartość dla {name}")
+    return values
+
+
 def parse_fields(
     definitions: Mapping[str, Field], payload: object
 ) -> dict[str, FieldValue]:
@@ -152,6 +173,14 @@ def parse_fields(
     for name, field in definitions.items():
         value = payload.get(name)
         if value is None:
+            continue
+        if field.type == "text_map":
+            try:
+                target = parse_text_map(value)
+            except ValueError as error:
+                raise ValueError(f"nieprawidłowe pole {name}: {error}") from error
+            if target:
+                values[name] = target
             continue
         if field.type == "text" and isinstance(value, str):
             if value.strip():
@@ -206,6 +235,13 @@ def _load_compact_profile(
                 isinstance(item, str) and item.strip() for item in value
             ):
                 defaults[name] = tuple(value)
+            elif isinstance(value, dict):
+                try:
+                    defaults[name] = parse_text_map(value)
+                except ValueError as error:
+                    raise ValueError(
+                        f"{label}: invalid value for {name}: {error}"
+                    ) from error
             else:
                 raise ValueError(f"{label}: invalid value for {name}")
         text = next(
@@ -237,12 +273,13 @@ def _load_compact_profile(
         for name, question in questions.items():
             if not isinstance(question, str) or not question.strip():
                 raise ValueError(f"{label}.fields: expected a question for {name}")
-            definitions[name] = Field(
-                question,
-                "text_list" if isinstance(defaults.get(name), tuple) else "text",
-                required[name],
-                True,
-            )
+            default = defaults.get(name)
+            field_type: Literal["text", "text_list", "text_map"] = "text"
+            if isinstance(default, tuple):
+                field_type = "text_list"
+            elif isinstance(default, dict):
+                field_type = "text_map"
+            definitions[name] = Field(question, field_type, required[name], True)
         prompts[kind] = Prompt(None, definitions)
 
     fields = prompts["USER_INSTRUCTION"].fields
@@ -330,7 +367,7 @@ def load_prompt(path: Path) -> PromptProfile | str:
                 or set(field) != {description_key, "type", "required", "embed"}
                 or not isinstance(field[description_key], str)
                 or not field[description_key].strip()
-                or field["type"] not in ("text", "text_list")
+                or field["type"] not in ("text", "text_list", "text_map")
                 or type(field["required"]) is not bool
                 or type(field["embed"]) is not bool
             ):
