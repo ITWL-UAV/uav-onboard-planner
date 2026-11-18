@@ -54,16 +54,14 @@ def _extract_fields(context: str, generate: Callable[[str], str]) -> dict[str, o
         kind = field["type"]
         answer = generate(
             f"Mission context:\n{mission}\n\nOperator: {message}\n\n"
-            f"Question: {field['question']}\n{_ANSWER_FORMAT[kind]}\n"
-            "If the information is absent, write N/A. If the operator must clarify, "
-            "write Clarify: followed by the question."
+            f"Question: {field['question']}\n{_ANSWER_FORMAT[kind]}"
         ).strip()
-        if not answer or answer.casefold() == "n/a":
-            continue
-        if answer.startswith("Clarify:"):
-            question = answer.removeprefix("Clarify:").strip()
-            if question and field.get("required", True):
-                return {"question": question}
+        if (
+            not answer
+            or answer.casefold() == "n/a"
+            or answer.startswith("Clarify:")
+            or answer.endswith("?")
+        ):
             continue
         if kind == "text":
             result[name] = answer

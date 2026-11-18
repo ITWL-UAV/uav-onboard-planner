@@ -97,8 +97,8 @@ def test_missing_destination_requests_clarification(
     assert "target" not in session.mission.active.fields
     assert not interpreter.requests and not encoder.calls
 
-    question = session.submit(first).question
-    assert question and "target" in question
+    incomplete = session.submit(first)
+    assert incomplete.missing_required == ("target",)
     assert session.user_instruction is None
     assert not encoder.calls
 
@@ -106,7 +106,7 @@ def test_missing_destination_requests_clarification(
     assert instruction.instruction == "USER_INSTRUCTION"
     assert instruction.draft == {"target": "point B"}
     assert instruction.vectors_by_field == {"target": (1.0,)}
-    assert interpreter.requests[-1]["pending_clarification"] == [first, question]
+    assert interpreter.requests[-1]["pending_clarification"] == [first]
 
 
 def test_destination_must_be_text(cargo_profile: PromptProfile) -> None:

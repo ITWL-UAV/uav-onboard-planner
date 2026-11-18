@@ -1,7 +1,9 @@
 import argparse
 import json
+import logging
 import sys
 from configparser import Error as ConfigError
+from os import environ
 from pathlib import Path
 from typing import TextIO
 
@@ -14,15 +16,21 @@ from ..nlp.session import Session
 def run_terminal(
     session: Session, source: TextIO, output: TextIO, errors: TextIO
 ) -> None:
+    interactive = source.isatty()
     while True:
-        if source.isatty():
-            print("Operator> ", end="", file=errors, flush=True)
+        if interactive:
+            print("User prompt: ", end="", file=errors, flush=True)
         line = source.readline()
         if not line:
             return
         if line.strip():
             try:
-                print(session.submit(line.strip()).to_json(), file=output, flush=True)
+                reply = session.submit(line.strip())
+                print(
+                    reply.to_json(indent=2 if interactive else None),
+                    file=output,
+                    flush=True,
+                )
             except ValueError as error:
                 print(f"Błąd: {error}", file=errors)
 
@@ -89,6 +97,15 @@ def main() -> int:
         systemone = SystemOneConfig.load(args.systemone_config)
         embeddings = EmbeddingConfig.load(args.embedding_config)
         prompt = load_prompt(systemone.prompt_file)
+        environ.setdefault("HF_HOME", str(Path("weights").resolve()))
+        environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+        environ.setdefault("HF_HUB_VERBOSITY", "error")
+        environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+        logging.getLogger(
+            "torch.distributed.elastic.multiprocessing.redirects"
+        ).setLevel(logging.ERROR)
+        if args.text is None and conversation is None and sys.stdin.isatty():
+            print("Loading models…", file=sys.stderr, flush=True)
         session = Session(
             HuggingFaceSystemOne(systemone, prompt),
             HuggingFaceEncoder(embeddings),

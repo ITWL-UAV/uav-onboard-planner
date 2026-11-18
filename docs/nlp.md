@@ -18,10 +18,13 @@ uv run --extra nlp python -m uav_onboard_planner.communication_cli
 ```
 
 Wpisuj polecenia po angielsku, np. „Transport crate A to point B”, a potem
-„Deliver it to point C instead”. Każdy wiersz wyjścia to osobny obiekt JSON.
-Zakończ wejście przez Ctrl+D albo użyj `--text "Transport crate A to point B"` do wykonania
-pojedynczej tury. Pierwsze użycie pobiera skonfigurowane wagi z Hugging
-Face. Oba modele działają na urządzeniu wskazanym w ich profilach.
+„Deliver it to point C instead”. Terminal prosi o tekst przez `User prompt:`
+i pokazuje JSON z wcięciami. Wejście z potoku, `--text` i odtwarzanie
+scenariusza zwracają jeden obiekt JSON na wiersz. Zakończ sesję przez Ctrl+D.
+
+Pierwsze uruchomienie pobiera wagi i pliki tokenizerów do `weights/`.
+Kolejne uruchomienia korzystają z tego cache’u. `HF_HOME` pozwala wskazać
+inną lokalizację. Dane w `weights/` są ignorowane przez Git.
 
 ## Profile i prompt
 
@@ -51,14 +54,16 @@ określa typ czynności. Pierwsza przyjęta wypowiedź staje
 się `USER_INSTRUCTION` i zastępuje całe domyślne zadanie.
 Kolejne wypowiedzi stają się zmianami `USER_PROMPT`. Sesja przekazuje
 modelowi pierwotne polecenie, zaakceptowane zmiany i oczekujące doprecyzowanie.
-Pytanie o doprecyzowanie pozostawia zaakceptowany stan i nie wywołuje enkodera.
+Niekompletny szkic zachowuje dotychczasowy stan misji. Następna wypowiedź
+może uzupełnić brakujące dane.
 
 Szkic zawiera `schema_version`, `instruction` oraz jawne pola w `draft`.
 `USER_INSTRUCTION` wymaga `target`, a `activity` i listę `constraints`
 traktuje jako opcjonalne. `USER_PROMPT` ma `change`, zaktualizowany `target`
 i opcjonalne zmiany ograniczeń. `target` to krótka fraza podawana przez
-operatora, np. `point B`. Aplikacja prosi o doprecyzowanie,
-gdy model pominie wymagane pole.
+operatora, np. `point B`. Brakujące wartości w `draft` mają postać
+`null`. Pole `missing_required` wymienia braki blokujące przyjęcie szkicu
+i jego wektoryzację.
 
 `embeddings` podaje identyfikator modelu, rewizję, wymiar i wektory
 według nazw pól. `target` otrzymuje jeden wektor, a wektory listy

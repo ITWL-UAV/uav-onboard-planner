@@ -59,7 +59,7 @@ def test_extraction_asks_one_question_per_field_and_parses_text_answers() -> Non
         assert "JSON" not in prompt
 
 
-def test_extraction_preserves_list_order_and_stops_at_clarification() -> None:
+def test_extraction_preserves_list_order_and_skips_questions() -> None:
     context = json.dumps(
         {
             "fields": {
@@ -74,9 +74,9 @@ def test_extraction_preserves_list_order_and_stops_at_clarification() -> None:
         "constraints": ["15 min", "Daylight only"],
     }
 
-    clarification = iter(["Clarify: Which roof?"])
+    clarification = iter(["Clarify: Which roof?", "15 min"])
     assert _extract_fields(context, lambda _: next(clarification)) == {
-        "question": "Which roof?"
+        "constraints": ["15 min"]
     }
 
 

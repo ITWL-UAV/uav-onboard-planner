@@ -30,7 +30,7 @@ def test_terminal_and_replay_return_the_same_replies() -> None:
         TESTS / "scenarios" / "clarifications.yaml", "missing-destination", seed=1
     )
     answers = {
-        "Transport crate A.": {},
+        "Transport crate A.": {"activity": "transport"},
         "Deliver it to point B.": {"target": "point B"},
         "Deliver it to point C before 14:00.": {
             "change": "Change the destination and delivery time",
@@ -60,10 +60,15 @@ def test_terminal_and_replay_return_the_same_replies() -> None:
     )
 
     assert terminal_out.getvalue() == replay_out.getvalue()
-    clarification, instruction, change = map(
+    incomplete, instruction, change = map(
         json.loads, replay_out.getvalue().splitlines()
     )
-    assert "target" in clarification["question"]
+    assert incomplete == {
+        "schema_version": 1,
+        "instruction": "USER_INSTRUCTION",
+        "draft": {"activity": "transport", "target": None, "constraints": None},
+        "missing_required": ["target"],
+    }
     assert (instruction["instruction"], instruction["draft"]["target"]) == (
         "USER_INSTRUCTION",
         "point B",
@@ -82,3 +87,28 @@ def test_terminal_and_replay_return_the_same_replies() -> None:
             {"time": 6, "text": "Deliver it to point C before 14:00."},
         ],
     }
+
+
+def test_interactive_cli_prompts_and_formats_json() -> None:
+    class Terminal(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    class Interpreter:
+        def interpret(self, context: str) -> object:
+            return {}
+
+    class Encoder:
+        def encode(self, texts: tuple[str, ...]) -> Embeddings:
+            raise AssertionError("incomplete drafts should not be encoded")
+
+    profile = load_prompt(TESTS / "fixtures" / "cargo_profile.yaml")
+    assert isinstance(profile, PromptProfile)
+    output, prompt = io.StringIO(), io.StringIO()
+    run_terminal(
+        Session(Interpreter(), Encoder(), profile), Terminal("test\n"), output, prompt
+    )
+
+    assert prompt.getvalue().startswith("User prompt: ")
+    assert output.getvalue().startswith('{\n  "schema_version"')
+    assert json.loads(output.getvalue())["draft"]["target"] is None
