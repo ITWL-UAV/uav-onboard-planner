@@ -1,0 +1,23 @@
+schema_version: 1
+SYSTEM:
+  source: profile
+  default_text: Document public parks.
+  fields:
+    purpose: {meaning: Purpose, type: text, required: true, embed: false}
+GENERAL_INSTRUCTION:
+  source: profile
+  default_text: Survey the trees.
+  fields:
+    objective: {meaning: Task, type: text, required: true, embed: true}
+USER_INSTRUCTION:
+  source: operator
+  default_text: null
+  fields:
+    objective: {meaning: Task, type: text, required: true, embed: true}
+    subjects: {meaning: Subjects, type: text_list, required: false, embed: true}
+USER_PROMPT:
+  source: operator
+  default_text: null
+  fields:
+    change: {meaning: Edit, type: text, required: true, embed: true}
+    applies_to: {meaning: Part, type: text, required: false, embed: false}
