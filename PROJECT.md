@@ -92,7 +92,7 @@ Na potrzeby prototypu wybieramy wariant z §3.3, w którym oddzielny enkoder obl
 
 #### Profil przeznaczenia i stan instrukcji
 
-Profil w `configs/nlp/prompts/` ma cztery osobne klucze YAML. Każdy określa źródło tekstu oraz schemat jego interpretacji. Dwie pierwsze treści pochodzą z angielskich wartości domyślnych profilu. Dwie pozostałe uzyskują treść dopiero od operatora. Techniczne wskazówki dla modelu System One dotyczące ekstrakcji pól i formatu JSON są konfiguracją interpretera. Dyrektywa `SYSTEM` jest jedną z danych wejściowych tego interpretera.
+Profil w `configs/nlp/prompts/` ma cztery klucze typów instrukcji. Każdy określa źródło tekstu. Dwie pierwsze treści pochodzą z angielskich wartości domyślnych profilu. Dwie pozostałe uzyskują treść dopiero od operatora. Schematy ekstrakcji i definicje ograniczeń znajdują się niżej w osobnych sekcjach. Techniczne wskazówki dotyczące formatu JSON są konfiguracją interpretera. Dyrektywa `SYSTEM` jest jedną z danych wejściowych tego interpretera.
 
 Przykładowo dron kartograficzny może mieć przeznaczenie „Document the condition of public green spaces” i domyślną instrukcję „Prepare an overview of the designated park”. Po przyjęciu polecenia „Udokumentuj stan alejek” aktywnym zadaniem staje się dokumentacja alejek. Wypowiedź „Zacznij od alejki przy wejściu” zmienia kolejność wykonania. Po tej zmianie w kontekście nadal można odczytać dosłowną instrukcję „Udokumentuj stan alejek” i pierwotne przeznaczenie drona.
 
@@ -102,45 +102,46 @@ Profil opisuje przeznaczenie niezależnie od modelu językowego. Powiązanie pro
 
 #### Proponowany kontrakt pól w YAML
 
-Poniższy przykład definiuje pola semantyczne dla czterech typów. Nazwy i zakres pól to propozycja do sprawdzenia na scenariuszach przed utrwaleniem wersji 1. Każde pole podaje znaczenie, typ, wymagalność i decyzję o wektoryzacji. Typ `text_list` oznacza uporządkowaną listę tekstów.
+Poniższy przykład definiuje pola semantyczne dla trzech typów. `SYSTEM` opisuje ogólne przeznaczenie i jest przekazywany jako pełny tekst kontekstu. Nazwy i zakres pól to propozycja do sprawdzenia na scenariuszach przed utrwaleniem wersji 1. Każde pole podaje pytanie do System One, typ, wymagalność i decyzję o wektoryzacji. Typ `text_list` oznacza uporządkowaną listę tekstów.
 
 ```yaml
 schema_version: 1
 SYSTEM:
   source: profile
   default_text: "Document the condition of public green spaces."
-  fields:
-    purpose: {meaning: "Enduring purpose of the UAV", type: text, required: true, embed: true}
-    scope: {meaning: "Explicit limits of this role", type: text_list, required: false, embed: true}
 GENERAL_INSTRUCTION:
   source: profile
   default_text: "Prepare an overview of the designated park."
-  fields:
-    objective: {meaning: "Default task until the operator assigns one", type: text, required: true, embed: true}
-    subjects: {meaning: "Subjects or areas named in the task", type: text_list, required: false, embed: true}
-    constraints: {meaning: "Explicit conditions on execution", type: text_list, required: false, embed: true}
 USER_INSTRUCTION:
   source: operator
   default_text: null
-  fields:
-    objective: {meaning: "Task assigned by the operator", type: text, required: true, embed: true}
-    subjects: {meaning: "Subjects or areas named in the task", type: text_list, required: false, embed: true}
-    constraints: {meaning: "Explicit conditions on execution", type: text_list, required: false, embed: true}
 USER_PROMPT:
   source: operator
   default_text: null
-  fields:
-    change: {meaning: "Requested change to execution of the active task", type: text, required: true, embed: true}
-    applies_to: {meaning: "Part of the task affected by the change", type: text, required: false, embed: true}
+
+json_extraction:
+  GENERAL_INSTRUCTION:
+    objective: {question: "What is the default task?", type: text, required: true, embed: true}
+    subjects: {question: "Which subjects or areas are named?", type: text_list, required: false, embed: true}
+  USER_INSTRUCTION:
+    objective: {question: "What task did the operator assign?", type: text, required: true, embed: true}
+    subjects: {question: "Which subjects or areas did the operator name?", type: text_list, required: false, embed: true}
+  USER_PROMPT:
+    change: {question: "What change to the active task did the operator request?", type: text, required: true, embed: true}
+    applies_to: {question: "What part of the task does the change affect?", type: text, required: false, embed: true}
+
+constraints:
+  GENERAL_INSTRUCTION: {question: "What explicit conditions apply to the default task?", type: text_list, required: false, embed: true}
+  USER_INSTRUCTION: {question: "What explicit conditions did the operator specify?", type: text_list, required: false, embed: true}
 ```
 
-Stacja wyznacza typ z kontekstu sesji i źródła wejścia. Dla każdego tekstu, również obu domyślnych przy inicjalizacji, System One otrzymuje właściwy schemat i wypełnia tylko wymienione pola. Brak opcjonalnej wartości oznacza pominięcie pola. Brak wymaganej wartości lub niejednoznaczne odniesienie wymaga wyjaśnienia. NLP sprawdza klucze i typy przed uruchomieniem enkodera. Dla każdej obecnej wartości z `embed: true` enkoder wylicza osobny wektor, a w przypadku listy po jednym wektorze na element. Wynik zawiera wersję schematu, typ promptu, jawne pola i embeddingi powiązane ze ścieżką pola oraz indeksem elementu listy. Typ, wersje i indeksy nadaje aplikacja.
+Stacja wyznacza typ z kontekstu sesji i źródła wejścia. Dla instrukcji domyślnej i wypowiedzi operatora System One otrzymuje właściwy schemat i wypełnia tylko wymienione pola. Brak opcjonalnej wartości oznacza pominięcie pola. Brak wymaganej wartości lub niejednoznaczne odniesienie wymaga wyjaśnienia. NLP sprawdza klucze i typy przed uruchomieniem enkodera. Dla każdej obecnej wartości z `embed: true` enkoder wylicza osobny wektor, a w przypadku listy po jednym wektorze na element. Wynik zawiera wersję schematu, typ promptu, jawne pola i embeddingi powiązane ze ścieżką pola oraz indeksem elementu listy. Typ, wersje i indeksy nadaje aplikacja.
 
 #### Etapy implementacji na stacji
 
 1. **Profile i kontrakty.** Zdefiniować cztery sekcje YAML, sprawdzić zaproponowane pola na kilku przeznaczeniach UAV i rozmowach z §3.5. Kryterium odbioru stanowi wczytanie innego profilu bez zmian kodu oraz wykrycie brakującej definicji pola.
 2. **Hierarchia w domenie misji.** Przetestować start bez operatora, zastąpienie całego domyślnego zadania pierwszą instrukcją i dwie kolejne zmiany wykonania. Po obu zmianach odczyt nadrzędnej instrukcji ma zwracać tę samą treść.
-3. **Interpretacja w module `nlp`.** Podłączyć System One przez port interpretacji, walidować JSON dla każdego typu i obsłużyć doprecyzowanie. Test z atrapą obejmuje także oba teksty z profilu, dodatkowy klucz i niejednoznaczną zmianę.
+3. **Interpretacja w module `nlp`.** Podłączyć System One przez port interpretacji, walidować JSON przy ekstrakcji i obsłużyć doprecyzowanie. Test z atrapą obejmuje dosłowny kontekst `SYSTEM`, interpretację instrukcji domyślnej, dodatkowy klucz i niejednoznaczną zmianę.
 4. **Wektoryzacja w module `nlp`.** Podłączyć osobny enkoder i powiązać każdy wektor z jawną wartością. Sprawdzić kolejność elementów listy, pominięcie pustych pól opcjonalnych oraz zachowanie sesji po błędzie enkodera.
 5. **Osobny moduł `communication_cli`.** Operator wpisuje tekst na stacji i widzi przyjęty JSON albo pytanie. CLI przekazuje wypowiedź do tej samej sesji NLP i wyświetla wynik. Reguły hierarchii należą do domeny misji, obsługa modeli do NLP, a transmisja stacja–pokład do modułu `communication`. Test wejścia i wyjścia terminala ma obejmować pierwszą instrukcję i modyfikację podczas misji.
 6. **Odtwarzanie i odbiór.** Podłączyć scenariusze YAML do tego samego przypadku użycia co CLI. Porównać wyniki po każdej turze według kryterium poniżej, a jakość ekstrakcji rzeczywistych modeli ocenić osobno na parafrazach.

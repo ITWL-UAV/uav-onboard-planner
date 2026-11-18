@@ -42,7 +42,6 @@ USER_PROMPT:
     contexts = []
     responses = iter(
         [
-            {"purpose": "Document public parks"},
             {"objective": "Survey", "subjects": ["trees"]},
             {"objective": "Map paths", "subjects": []},
             {"change": "Start at entrance"},
@@ -69,10 +68,9 @@ USER_PROMPT:
             return Embeddings("test/encoder", "v1", vectors)
 
     session = Session(Interpreter(), Encoder(), profile)
-    assert [context["instruction"] for context in contexts] == [
-        "SYSTEM",
-        "GENERAL_INSTRUCTION",
-    ]
+    assert [context["instruction"] for context in contexts] == ["GENERAL_INSTRUCTION"]
+    assert contexts[0]["system"] == {"text": "Document public parks.", "fields": {}}
+    assert [reply.instruction for reply in session.initial] == ["GENERAL_INSTRUCTION"]
     assert session.mission.active.fields == {
         "objective": "Survey",
         "subjects": ("trees",),

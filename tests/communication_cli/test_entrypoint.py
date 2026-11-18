@@ -37,17 +37,33 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
         def __init__(self) -> None:
             self.responses = iter(
                 [
-                    {"purpose": "Inspect buildings"},
-                    {"objective": "Document an exterior"},
+                    {"objective": "Survey the area and document building exteriors"},
                     {"question": "Który dach?"},
-                    {"objective": "Inspect roof A", "sites": ["dach A"]},
+                    {
+                        "objective": "Inspect roof A",
+                        "sites": ["dach A"],
+                        "constraints": ["Zachowaj odległość 3 m."],
+                    },
                     {"change": "Begin with gutters", "sites": ["dach A"]},
                     {"change": "Begin with the facade", "sites": ["dach A"]},
                 ]
             )
 
         def interpret(self, context: str) -> object:
-            assert "expected" not in json.loads(context)
+            request = json.loads(context)
+            assert "expected" not in request
+            assert request["instruction"] != "SYSTEM"
+            assert request["system"] == {
+                "text": "Serve as a civilian platform for aerial inspection of building exteriors.",
+                "fields": {},
+            }
+            if request["instruction"] == "GENERAL_INSTRUCTION":
+                assert "Survey the designated area" in request["profile_text"]
+            assert all(
+                set(field) == {"question", "type", "required", "embed"}
+                and field["question"].endswith("?")
+                for field in request["fields"].values()
+            )
             return next(self.responses)
 
     class Encoder:
@@ -70,6 +86,9 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
         json.loads(line).get("instruction")
         for line in replay_out.getvalue().splitlines()
     ] == [None, "USER_INSTRUCTION", "USER_PROMPT", "USER_PROMPT"]
+    first = json.loads(replay_out.getvalue().splitlines()[1])
+    assert first["draft"]["constraints"] == ["Zachowaj odległość 3 m."]
+    assert first["embeddings"]["fields"]["constraints"] == [[1.0]]
     record = json.loads(metadata.getvalue())
     assert record["conversation"] == "roof-selection"
     assert record["seed"] == 5

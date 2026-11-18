@@ -117,7 +117,7 @@ def _legacy_prompt(path: Path, data: object) -> str:
 
 @dataclass(frozen=True)
 class Field:
-    meaning: str
+    question: str
     type: Literal["text", "text_list"]
     required: bool
     embed: bool
@@ -146,9 +146,11 @@ def load_prompt(path: Path) -> PromptProfile | str:
         "USER_INSTRUCTION",
         "USER_PROMPT",
     )
+    profile_keys = {"schema_version", *kinds}
     if (
         not isinstance(data, dict)
-        or set(data) != {"schema_version", *kinds}
+        or not profile_keys <= data.keys()
+        or data.keys() - profile_keys - {"json_extraction", "constraints"}
         or type(data["schema_version"]) is not int
         or data["schema_version"] != 1
     ):
@@ -156,13 +158,33 @@ def load_prompt(path: Path) -> PromptProfile | str:
             f"{path}: expected schema_version 1 and four instruction types"
         )
 
+    separated = "json_extraction" in data
+    extraction = data.get("json_extraction", {})
+    constraints = data.get("constraints", {})
+    extractable = set(kinds) - {"SYSTEM"}
+    if not isinstance(extraction, dict) or (
+        separated and extraction.keys() != extractable
+    ):
+        raise ValueError(
+            f"{path}: json_extraction must cover GENERAL_INSTRUCTION, USER_INSTRUCTION and USER_PROMPT"
+        )
+    if (
+        not isinstance(constraints, dict)
+        or constraints.keys() - extractable
+        or ("constraints" in data and not separated)
+    ):
+        raise ValueError(f"{path}: invalid constraints section")
+
+    section_keys = {"source", "default_text"}
+    if not separated:
+        section_keys.add("fields")
     prompts: dict[InstructionType, Prompt] = {}
     for kind in kinds:
         section = data[kind]
         source = "profile" if kind in ("SYSTEM", "GENERAL_INSTRUCTION") else "operator"
         if (
             not isinstance(section, dict)
-            or set(section) != {"source", "default_text", "fields"}
+            or set(section) != section_keys
             or section["source"] != source
         ):
             raise ValueError(f"{path}: invalid {kind} section")
@@ -174,9 +196,16 @@ def load_prompt(path: Path) -> PromptProfile | str:
         elif default is not None:
             raise ValueError(f"{path}: {kind}.default_text must be null")
 
-        definitions = section["fields"]
-        if not isinstance(definitions, dict) or not definitions:
+        definitions = extraction.get(kind, {}) if separated else section["fields"]
+        if not isinstance(definitions, dict) or (kind != "SYSTEM" and not definitions):
             raise ValueError(f"{path}: {kind}.fields must define at least one field")
+        if kind in constraints:
+            if "constraints" in definitions:
+                raise ValueError(
+                    f"{path}: duplicate field definition {kind}.constraints"
+                )
+            definitions = {**definitions, "constraints": constraints[kind]}
+        description_key = "question" if separated else "meaning"
         prompt_fields: dict[str, Field] = {}
         for name, field in definitions.items():
             if (
@@ -184,16 +213,16 @@ def load_prompt(path: Path) -> PromptProfile | str:
                 or not name.strip()
                 or name == "question"
                 or not isinstance(field, dict)
-                or set(field) != {"meaning", "type", "required", "embed"}
-                or not isinstance(field["meaning"], str)
-                or not field["meaning"].strip()
+                or set(field) != {description_key, "type", "required", "embed"}
+                or not isinstance(field[description_key], str)
+                or not field[description_key].strip()
                 or field["type"] not in ("text", "text_list")
                 or type(field["required"]) is not bool
                 or type(field["embed"]) is not bool
             ):
                 raise ValueError(f"{path}: invalid field definition {kind}.{name}")
             prompt_fields[name] = Field(
-                field["meaning"], field["type"], field["required"], field["embed"]
+                field[description_key], field["type"], field["required"], field["embed"]
             )
         prompts[kind] = Prompt(default, prompt_fields)
     return PromptProfile(data["schema_version"], prompts)

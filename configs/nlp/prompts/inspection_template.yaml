@@ -1,25 +1,56 @@
 schema_version: 1
+
 SYSTEM:
   source: profile
-  default_text: Help building owners and maintenance teams document the exterior condition of buildings.
-  fields:
-    purpose: {meaning: Civilian exterior inspection purpose, type: text, required: true, embed: true}
+  default_text: Serve as a civilian platform for aerial inspection of building exteriors.
 GENERAL_INSTRUCTION:
   source: profile
-  default_text: Document the condition of the designated building exterior.
-  fields:
-    objective: {meaning: Default inspection objective, type: text, required: true, embed: true}
+  default_text: Survey the designated area to understand its surroundings and document the visible condition of building exteriors.
 USER_INSTRUCTION:
   source: operator
   default_text: null
-  fields:
-    objective: {meaning: Exterior inspection objective assigned by the operator, type: text, required: true, embed: true}
-    sites: {meaning: Ordered unique sites explicitly named by the operator, type: text_list, required: true, embed: true}
-    constraints: {meaning: Explicit constraints including numbers and units, type: text_list, required: false, embed: true}
 USER_PROMPT:
   source: operator
   default_text: null
-  fields:
-    change: {meaning: Requested adjustment to the active inspection, type: text, required: true, embed: true}
-    sites: {meaning: Complete ordered list of unique sites after applying the edit to the latest accepted list, type: text_list, required: true, embed: true}
-    constraints: {meaning: Explicit changes to constraints including numbers and units, type: text_list, required: false, embed: true}
+
+json_extraction:
+  GENERAL_INSTRUCTION:
+    objective:
+      question: What broad survey or observation task should guide the mission by default?
+      type: text
+      required: true
+      embed: true
+  USER_INSTRUCTION:
+    objective:
+      question: What exterior inspection objective did the operator explicitly state?
+      type: text
+      required: true
+      embed: true
+    sites:
+      question: Which distinct sites did the operator explicitly name, in the requested order?
+      type: text_list
+      required: true
+      embed: true
+  USER_PROMPT:
+    change:
+      question: What adjustment to the active inspection did the operator request?
+      type: text
+      required: true
+      embed: true
+    sites:
+      question: What is the complete ordered list of distinct sites after applying the edit to the latest accepted list?
+      type: text_list
+      required: true
+      embed: true
+
+constraints:
+  USER_INSTRUCTION:
+    question: What constraints did the operator explicitly specify, including any numbers and units?
+    type: text_list
+    required: false
+    embed: true
+  USER_PROMPT:
+    question: What changes to the constraints did the operator explicitly request, including any numbers and units?
+    type: text_list
+    required: false
+    embed: true

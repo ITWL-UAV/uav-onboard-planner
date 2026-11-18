@@ -119,12 +119,20 @@ class Session:
         self.mission: Mission | None = None
         self.initial: tuple[Reply, ...] = ()
         if profile is not None:
-            system, system_reply = self._default("SYSTEM", {})
-            general, general_reply = self._default(
-                "GENERAL_INSTRUCTION", {"system": _context(system)}
+            system_text = profile.prompts["SYSTEM"].default_text
+            general_text = profile.prompts["GENERAL_INSTRUCTION"].default_text
+            assert system_text is not None and general_text is not None
+            system = Instruction(system_text, MappingProxyType({}))
+            general_reply = self._interpret(
+                "GENERAL_INSTRUCTION", general_text, {"system": _context(system)}
+            )
+            if general_reply.draft is None:
+                raise ValueError(f"GENERAL_INSTRUCTION: {general_reply.question}")
+            general = Instruction(
+                general_text, MappingProxyType(general_reply.draft.copy())
             )
             self.mission = Mission(system, general)
-            self.initial = (system_reply, general_reply)
+            self.initial = (general_reply,)
 
     @property
     def user_instruction(self) -> str | None:
@@ -203,17 +211,6 @@ class Session:
         self._sites = sites
         self._clarification = ()
         return Reply(instruction, sites, embeddings)
-
-    def _default(
-        self, kind: InstructionType, context: dict[str, object]
-    ) -> tuple[Instruction, Reply]:
-        assert self._profile is not None
-        text = self._profile.prompts[kind].default_text
-        assert text is not None
-        reply = self._interpret(kind, text, context)
-        if reply.draft is None:
-            raise ValueError(f"{kind}: {reply.question}")
-        return Instruction(text, MappingProxyType(reply.draft.copy())), reply
 
     def _submit(self, text: str, mission: Mission) -> Reply:
         reply = self._interpret(
