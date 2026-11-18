@@ -6,7 +6,7 @@ import yaml
 
 from .contracts import Mission, Position, position, positive
 from .scenario import MissionCancellation, RouteChange, schedule
-from .sensors import AltimeterConfig
+from .sensors import AltimeterConfig, AltimeterOutage
 
 
 @dataclass(frozen=True)
@@ -48,9 +48,22 @@ def _parse_altimeter(settings: object, directory: Path) -> AltimeterConfig:
             raise ValueError("altimeter profile path must not be empty")
         path = directory / settings
         settings = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(settings, dict) or set(settings) != {"noise_std_m", "delay_s"}:
+    if not isinstance(settings, dict) or set(settings) - {"outages"} != {
+        "noise_std_m",
+        "delay_s",
+    }:
         raise ValueError("invalid altimeter fields")
-    return AltimeterConfig(settings["noise_std_m"], settings["delay_s"])
+    outages = settings.get("outages", [])
+    if not isinstance(outages, list):
+        raise TypeError("altimeter outages must be a list")
+    intervals = []
+    for outage in outages:
+        if not isinstance(outage, dict) or set(outage) != {"start_s", "end_s"}:
+            raise ValueError("invalid altimeter outage fields")
+        intervals.append(AltimeterOutage(outage["start_s"], outage["end_s"]))
+    return AltimeterConfig(
+        settings["noise_std_m"], settings["delay_s"], tuple(intervals)
+    )
 
 
 def _parse_config(data: object, directory: Path) -> SimulationConfig:

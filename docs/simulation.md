@@ -26,9 +26,9 @@ Katalog wyjściowy musi być nowy. Wyniki obejmują:
 w oknie Matplotlib. Nie jest to podgląd na żywo. Bez środowiska graficznego
 pozostaw `false`; wykres nadal zostanie zapisany.
 
-Status przebiegu `finished` oznacza koniec zadanego czasu, niekoniecznie ukończenie
-wszystkich misji. Nieukończona misja pozostaje `active`. Jeśli obliczenia przerwano
-błędem, zachowane częściowe wyniki mają status przebiegu `running`.
+Po wykonaniu epizodu `run.json` podaje `end_reason` i czas ostatniego pełnego
+kroku. Przy limicie czasu status przebiegu to `finished`, a przy błędzie kroku
+`failed`. Nieukończona misja pozostaje `active`. Częściowe pliki CSV są zachowywane.
 
 ## Konfiguracja
 
@@ -99,9 +99,12 @@ lot stałopłata do końca epizodu. Uruchom go z
 
 Do uruchomienia w pamięci służy `create_episode(load_config(path))` z modułów
 `runner` i `config`. `snapshot()` zwraca bieżące próbki lotu, `step()`
-przesuwa epizod o jeden krok, a `finished` sygnalizuje osiągnięcie limitu
-czasu. `reset()` tworzy od nowa pojazdy i harmonogram. Próbki zawierają stan
-symulatora i status misji. Przy wyjątku z adaptera epizod wymaga resetu.
+przesuwa epizod o jeden krok, a `finished` sygnalizuje koniec epizodu.
+W trakcie epizodu `outcome` ma wartość `None`. Po zakończeniu podaje przyczynę
+(`time_limit`, `interrupted` po wywołaniu `stop()` między krokami lub `error`)
+i czas ostatniego pełnego kroku. `reset()` tworzy od nowa pojazdy i harmonogram.
+Próbki zawierają stan symulatora i status misji. Po błędzie z adaptera odczyt próbki
+i dalsze kroki wymagają resetu.
 
 ### Polecenia w trakcie epizodu
 
@@ -132,6 +135,20 @@ bieżącym kroku. CLI zapisuje tę samą partię do `altitude.csv`.
 a `received_at_s` jest czasem kroku, w którym pomiar stał się widoczny.
 Pomiary niedostarczone przed końcem epizodu nie trafiają do pliku.
 Częstotliwość zapisu trajektorii nie wpływa na zapis pomiarów.
+
+Opcjonalna lista `outages` w profilu wysokościomierza zawiera
+uporządkowane, nienakładające się przedziały `[start_s, end_s)`. Czasy są
+liczone od początku epizodu. Przerwa usuwa ostatni odczyt i próbki oczekujące
+na dostarczenie. Po wznowieniu odczyt znów przechodzi przez opóźnienie profilu.
+Przedziały są oceniane na krokach fizyki. Przerwa mieszcząca się w całości
+między krokami usuwa stare próbki, ale może nie dać osobnego kroku ze
+statusem niedostępności.
+
+`episode.altimeter_statuses()` zwraca dla każdego pojazdu
+`not_equipped`, `waiting`, `unavailable` albo `available`. W CSV przerwę
+widać jako lukę w dostarczonych pomiarach. Przykład z oknem od 1,25 s do 2 s
+jest w [osobnym profilu YAML](../configs/simulation/sensors/altimeter_with_outage.yaml)
+używanym przez scenariusz anulowania misji.
 
 ## Backend quadkoptera
 

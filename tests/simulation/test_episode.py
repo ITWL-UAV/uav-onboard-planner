@@ -4,7 +4,7 @@ from uav_onboard_planner.simulation.contracts import FlightState, Mission, Posit
 from uav_onboard_planner.simulation.episode import Episode
 from uav_onboard_planner.simulation.mission import Flight, Simulation
 from uav_onboard_planner.simulation.scenario import MissionCancellation, RouteChange
-from uav_onboard_planner.simulation.sensors import AltimeterConfig
+from uav_onboard_planner.simulation.sensors import AltimeterConfig, AltimeterOutage
 
 
 class Aircraft:
@@ -146,11 +146,21 @@ def test_live_mission_commands_apply_between_steps_and_reset() -> None:
     last = episode.step()
     assert last["survey"].state.position == second["survey"].state.position
     assert last["traffic"].status == "completed"
+    assert episode.outcome is not None
+    assert episode.outcome.reason == "time_limit"
+    assert episode.outcome.simulated_seconds == pytest.approx(0.03)
     with pytest.raises(RuntimeError, match="reset"):
         episode.cancel_mission("survey")
 
     episode.reset()
+    assert episode.outcome is None
     assert episode.step() == first
+    episode.stop()
+    assert episode.finished
+    assert episode.outcome is not None
+    assert episode.outcome.reason == "interrupted"
+    assert episode.outcome.simulated_seconds == pytest.approx(0.01)
+    assert episode.snapshot() == first
 
 
 def test_failed_live_mission_command_requires_reset() -> None:
@@ -168,9 +178,78 @@ def test_failed_live_mission_command_requires_reset() -> None:
     episode = Episode(create, 0.01, 0.03)
     with pytest.raises(RuntimeError, match="cannot hold position"):
         episode.cancel_mission("survey")
+    assert episode.finished
+    assert episode.outcome is not None
+    assert episode.outcome.reason == "error"
     with pytest.raises(RuntimeError, match="reset"):
         episode.snapshot()
     with pytest.raises(RuntimeError, match="reset"):
         episode.step()
     episode.reset()
     assert episode.snapshot()["survey"].status == "active"
+
+
+def test_failed_boundary_records_time_of_last_complete_step() -> None:
+    class FailingAircraft(Aircraft):
+        def set_target(self, target: Position | None) -> None:
+            if target == (0, 5, 10):
+                raise RuntimeError("cannot accept route")
+            super().set_target(target)
+
+    def create() -> Simulation:
+        return Simulation(
+            {
+                "survey": Flight(
+                    FailingAircraft(), Mission(((1, 0, 10), (2, 0, 10)), 0.1)
+                )
+            }
+        )
+
+    episode = Episode(
+        create, 0.01, 0.03, (RouteChange(0.015, "survey", Mission(((0, 5, 10),), 0.1)),)
+    )
+    episode.step()
+    with pytest.raises(RuntimeError, match="cannot accept route"):
+        episode.step()
+    assert episode.outcome is not None
+    assert episode.outcome.reason == "error"
+    assert episode.outcome.simulated_seconds == pytest.approx(0.01)
+    assert episode.time == pytest.approx(0.01)
+
+
+def test_altimeter_outage_is_distinct_from_waiting_and_resets() -> None:
+    def create() -> Simulation:
+        mission = Mission(((1, 0, 10),), 0.1)
+        return Simulation(
+            {name: Flight(Aircraft(), mission) for name in ("survey", "traffic")}
+        )
+
+    episode = Episode(
+        create,
+        0.125,
+        0.75,
+        altimeters={"survey": AltimeterConfig(0, 0.125, (AltimeterOutage(0.25, 0.5),))},
+    )
+
+    def trace() -> None:
+        assert episode.altimeter_statuses() == {
+            "survey": "waiting",
+            "traffic": "not_equipped",
+        }
+        for expected in (
+            "available",
+            "unavailable",
+            "unavailable",
+            "waiting",
+            "available",
+        ):
+            episode.step()
+            assert episode.altimeter_statuses()["survey"] == expected
+            if expected in ("unavailable", "waiting"):
+                assert episode.altitude_observations()["survey"] is None
+                assert episode.altitude_updates() == {}
+        assert episode.altitude_updates()["survey"][0].measured_at_s == 0.5
+
+    trace()
+    episode.reset()
+    trace()

@@ -8,7 +8,20 @@ from typing import Literal
 from .contracts import FlightState, Mission, positive
 from .mission import Simulation
 from .scenario import MissionCancellation, RouteChange, schedule, validate_route_change
-from .sensors import AltimeterConfig, AltitudeMeasurement, SimulatedAltimeter
+from .sensors import (
+    AltimeterConfig,
+    AltimeterStatus,
+    AltitudeMeasurement,
+    SimulatedAltimeter,
+)
+
+type EpisodeEndReason = Literal["time_limit", "interrupted", "error"]
+
+
+@dataclass(frozen=True)
+class EpisodeOutcome:
+    reason: EpisodeEndReason
+    simulated_seconds: float
 
 
 @dataclass(frozen=True)
@@ -57,19 +70,33 @@ class Episode:
         )
         self._simulation = simulation
         self._altimeters = altimeters
-        self._failed = False
+        self._outcome: EpisodeOutcome | None = None
+
+    @property
+    def outcome(self) -> EpisodeOutcome | None:
+        return self._outcome
 
     @property
     def time(self) -> float:
+        if self._outcome is not None:
+            return self._outcome.simulated_seconds
         return self._simulation.time
 
     @property
     def finished(self) -> bool:
-        return not self._pending and isclose(self.time, self._duration, rel_tol=1e-12)
+        return self._outcome is not None
+
+    def stop(self) -> None:
+        """End the episode between steps, keeping the last complete state."""
+        if self._outcome is None:
+            self._outcome = EpisodeOutcome("interrupted", self.time)
+
+    def _require_readable_state(self) -> None:
+        if self._outcome is not None and self._outcome.reason == "error":
+            raise RuntimeError("reset the episode after a failed step")
 
     def snapshot(self) -> dict[str, FlightSample]:
-        if self._failed:
-            raise RuntimeError("reset the episode after a failed step")
+        self._require_readable_state()
         return {
             name: FlightSample(
                 flight.autopilot.state, flight.status, flight.waypoint_index
@@ -79,14 +106,22 @@ class Episode:
 
     def altitude_observations(self) -> dict[str, AltitudeMeasurement | None]:
         """Return the latest available measurement for each equipped flight."""
-        if self._failed:
-            raise RuntimeError("reset the episode after a failed step")
+        self._require_readable_state()
         return {name: sensor.latest for name, sensor in self._altimeters.items()}
+
+    def altimeter_statuses(self) -> dict[str, AltimeterStatus]:
+        """Report availability for every flight at the current simulation step."""
+        self._require_readable_state()
+        return {
+            name: self._altimeters[name].status
+            if name in self._altimeters
+            else "not_equipped"
+            for name in self._simulation.flights
+        }
 
     def altitude_updates(self) -> dict[str, tuple[AltitudeMeasurement, ...]]:
         """Return measurements made available at the current simulation step."""
-        if self._failed:
-            raise RuntimeError("reset the episode after a failed step")
+        self._require_readable_state()
         return {
             name: sensor.released
             for name, sensor in self._altimeters.items()
@@ -102,7 +137,7 @@ class Episode:
         self._command_mission(drone, None)
 
     def _command_mission(self, drone: str, mission: Mission | None) -> None:
-        if self._failed or self.finished:
+        if self.finished:
             raise RuntimeError("reset the episode before issuing a mission command")
         if drone not in self._simulation.flights:
             raise ValueError(f"unknown drone: {drone!r}")
@@ -111,7 +146,7 @@ class Episode:
         try:
             self._apply_mission(drone, mission)
         except Exception:
-            self._failed = True
+            self._outcome = EpisodeOutcome("error", self.time)
             raise
 
     def _apply_mission(self, drone: str, mission: Mission | None) -> None:
@@ -122,10 +157,11 @@ class Episode:
             flight.replace_mission(mission)
 
     def step(self) -> dict[str, FlightSample]:
-        if self._failed or self.finished:
+        if self.finished:
             raise RuntimeError("reset the episode before stepping again")
+        previous_time = self.time
         boundary = self._pending[0].time if self._pending else self._duration
-        dt = min(self._time_step, boundary - self.time)
+        dt = min(self._time_step, boundary - previous_time)
         try:
             states = self._simulation.step(dt)
             while self._pending and self._pending[0].time <= self.time:
@@ -134,7 +170,10 @@ class Episode:
                 self._apply_mission(event.drone, mission)
             for name, altimeter in self._altimeters.items():
                 altimeter.sample(self.time, states[name].position[2])
-            return self.snapshot()
+            samples = self.snapshot()
         except Exception:
-            self._failed = True
+            self._outcome = EpisodeOutcome("error", previous_time)
             raise
+        if not self._pending and isclose(self.time, self._duration, rel_tol=1e-12):
+            self._outcome = EpisodeOutcome("time_limit", self.time)
+        return samples

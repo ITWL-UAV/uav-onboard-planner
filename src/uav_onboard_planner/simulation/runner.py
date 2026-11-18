@@ -9,7 +9,7 @@ from typing import NotRequired, TypedDict
 
 from .config import SimulationConfig
 from .contracts import Autopilot
-from .episode import Episode, FlightSample
+from .episode import Episode, EpisodeEndReason, FlightSample
 from .mission import Flight, Simulation
 
 
@@ -20,6 +20,7 @@ class RunMetadata(TypedDict):
     status: str
     missions: NotRequired[dict[str, str]]
     simulated_seconds: NotRequired[float]
+    end_reason: NotRequired[EpisodeEndReason]
 
 
 def create_simulation(config: SimulationConfig) -> Simulation:
@@ -71,6 +72,8 @@ def run(config: SimulationConfig, output: Path) -> dict[str, str]:
     for drone in configuration["drones"]:
         if drone["altimeter"] is None:
             del drone["altimeter"]
+        elif not drone["altimeter"]["outages"]:
+            del drone["altimeter"]["outages"]
     metadata: RunMetadata = {
         "configuration": configuration,
         "python": python_version(),
@@ -151,7 +154,16 @@ def run(config: SimulationConfig, output: Path) -> dict[str, str]:
         record_altitude()
         next_sample = config.sample_interval
         while not episode.finished:
-            samples = episode.step()
+            try:
+                samples = episode.step()
+            except Exception:
+                metadata["status"] = "failed"
+                metadata["end_reason"] = "error"
+                metadata["simulated_seconds"] = episode.time
+                metadata_path.write_text(
+                    json.dumps(metadata, indent=2), encoding="utf-8"
+                )
+                raise
             record_altitude()
             if episode.time + 1e-9 >= next_sample or episode.finished:
                 record(samples)
@@ -160,5 +172,7 @@ def run(config: SimulationConfig, output: Path) -> dict[str, str]:
     metadata["status"] = "finished"
     metadata["missions"] = statuses
     metadata["simulated_seconds"] = episode.time
+    assert episode.outcome is not None
+    metadata["end_reason"] = episode.outcome.reason
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return statuses

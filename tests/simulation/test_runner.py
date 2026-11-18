@@ -30,6 +30,7 @@ def test_run_records_both_aircraft_and_configuration(tmp_path: Path) -> None:
     assert metadata["packages"]["rotorpy"]
     assert metadata["missions"] == statuses
     assert metadata["status"] == "finished"
+    assert metadata["end_reason"] == "time_limit"
     with pytest.raises(FileExistsError):
         run(config, output)
 
@@ -116,3 +117,11 @@ def test_cancellation_scenario_records_the_remaining_flight(tmp_path: Path) -> N
     assert metadata["configuration"]["mission_cancellations"] == [
         {"time": 2.505, "drone": "survey"}
     ]
+    assert metadata["configuration"]["drones"][0]["altimeter"]["outages"] == [
+        {"start_s": 1.25, "end_s": 2.0}
+    ]
+    with (output / "altitude.csv").open() as stream:
+        received = [float(row["received_at_s"]) for row in csv.DictReader(stream)]
+    assert received[0] < 1.25
+    assert received[-1] > 2.025
+    assert all(not 1.25 <= time < 2.025 for time in received)

@@ -60,6 +60,18 @@ def test_invalid_run_parameters(tmp_path: Path, field: str, value) -> None:
         ("altimeter", {"noise_std_m": 0.2}),
         ("altimeter", {"noise_std_m": -0.2, "delay_s": 0}),
         ("altimeter", {"noise_std_m": 0.2, "delay_s": True}),
+        (
+            "altimeter",
+            {"noise_std_m": 0, "delay_s": 0, "outages": [{"start_s": 2, "end_s": 1}]},
+        ),
+        (
+            "altimeter",
+            {
+                "noise_std_m": 0,
+                "delay_s": 0,
+                "outages": [{"start_s": 1, "end_s": 3}, {"start_s": 2, "end_s": 4}],
+            },
+        ),
     ],
 )
 def test_invalid_aircraft_parameters(tmp_path: Path, field: str, value) -> None:

@@ -1,0 +1,5 @@
+noise_std_m: 0.2
+delay_s: 0.025
+outages:
+  - start_s: 1.25
+    end_s: 2.0
