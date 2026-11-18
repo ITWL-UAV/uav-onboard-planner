@@ -77,6 +77,7 @@ Przed pracą przeczytaj dokumentację dotyczącą zmienianego obszaru. Jeśli je
 - Testy pisz w `pytest`. Organizuj je w osobnych plikach i katalogach odpowiadających testowanym modułom. Współdzielone fixtures umieszczaj w `conftest.py` na odpowiednim poziomie, jeśli są potrzebne.
 - Nowe zachowanie i poprawki błędów rozwijaj w cyklu: test opisujący wymaganie, potwierdzona porażka, minimalna implementacja, refaktoring.
 - Test ma sprawdzać obserwowalne zachowanie lub kontrakt, a nie kopiować strukturę implementacji. Poprawka błędu powinna pozostawić test regresyjny.
+- Testy muszą być niezależne od konkretnych wartości w roboczych i przykładowych konfiguracjach repozytorium. Jeżeli poprawna zmiana wartości w takim pliku powoduje porażkę testu, popraw test. Gdy do sprawdzenia zachowania potrzebujesz określonych danych, użyj fixture przeznaczonej do testów albo utwórz konfigurację w `tmp_path`. Testy ładowania konfiguracji sprawdzają kontrakt, walidację i interpretację danych na kontrolowanych wejściach.
 - Logikę domenową testuj bez GPU, sieci i sprzętu. Stosuj małe atrapowe adaptery; unikaj rozbudowanego mockowania szczegółów bibliotek.
 - Testy integracyjne adapterów oddziel od szybkich testów jednostkowych. Wymagania sprzętowe i sposób uruchomienia oznaczaj jawnie.
 - Sprawdzaj brakujące i opóźnione obserwacje, błędne polecenia oraz przerwanie wykonania, gdy dotyczą zmienianego zachowania.
