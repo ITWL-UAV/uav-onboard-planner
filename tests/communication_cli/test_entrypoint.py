@@ -19,11 +19,12 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
     from pathlib import Path
 
     from uav_onboard_planner.communication_cli.__main__ import run_replay, run_terminal
-    from uav_onboard_planner.nlp.config import load_prompt
+    from uav_onboard_planner.nlp.config import SystemOneConfig, load_prompt
     from uav_onboard_planner.nlp.scenario import load_conversation
     from uav_onboard_planner.nlp.session import Embeddings, Session
 
-    profile = load_prompt(Path("configs/nlp/prompts/inspection.yaml"))
+    settings = SystemOneConfig.load(Path("configs/nlp/systemone/default.ini"))
+    profile = load_prompt(settings.prompt_file)
     conversation = load_conversation(
         Path("scenarios/clarifications.yaml"), "roof-selection", 5
     )

@@ -29,7 +29,7 @@ Face. Oba modele działają na urządzeniu wskazanym w ich profilach.
 | --- | --- |
 | [System One](../configs/nlp/systemone/default.ini) | Identyfikator modelu z Hugging Face, rewizja, urządzenie, precyzja `bfloat16` lub `float16`, łączny limit tokenów wejścia i generacji, limit generacji, ścieżka promptu. |
 | [Embeddingi](../configs/nlp/embeddings/default.ini) | Model i rewizja, urządzenie, precyzja, limit tokenów na tekst, rozmiar partii, pooling i normalizacja. |
-| [Profil przeznaczenia](../configs/nlp/prompts/inspection.yaml) | Teksty domyślne i schematy pól dla czterech typów instrukcji. Ścieżka w profilu System One jest względna wobec tego profilu. |
+| [Profil przeznaczenia](../configs/nlp/prompts/inspection_template.yaml) | Teksty domyślne i schematy pól dla czterech typów instrukcji. Ścieżka w profilu System One jest względna wobec tego profilu. |
 
 Profil można podmienić przez `--systemone-config` albo `--embedding-config`.
 Ustawienie `device = auto` wybiera CUDA, MPS lub CPU w tej kolejności.
