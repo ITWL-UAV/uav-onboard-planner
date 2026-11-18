@@ -23,9 +23,11 @@ class Flight:
     def step(self, dt: float) -> FlightState:
         positive(dt, "dt")
         state = self.autopilot.step(dt)
-        while self.status == "active" and dist(
-            state.position, self.mission.waypoints[self.waypoint_index]
-        ) <= self.mission.arrival_radius:
+        while (
+            self.status == "active"
+            and dist(state.position, self.mission.waypoints[self.waypoint_index])
+            <= self.mission.arrival_radius
+        ):
             self.waypoint_index += 1
             if self.waypoint_index == len(self.mission.waypoints):
                 self.autopilot.set_target(None)

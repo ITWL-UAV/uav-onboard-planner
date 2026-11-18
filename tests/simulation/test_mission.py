@@ -55,7 +55,9 @@ def test_invalid_step_does_not_advance_aircraft(dt: float) -> None:
     assert aircraft.state.time == 0
 
 
-@pytest.mark.parametrize("points,radius", [([], 1), ([(0, 0, 1)], 0), ([(0, 0, float("nan"))], 1)])
+@pytest.mark.parametrize(
+    "points,radius", [([], 1), ([(0, 0, 1)], 0), ([(0, 0, float("nan"))], 1)]
+)
 def test_invalid_missions_are_rejected(points, radius) -> None:
     with pytest.raises(ValueError):
         Mission(points, radius)

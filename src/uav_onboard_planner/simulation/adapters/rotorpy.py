@@ -11,7 +11,9 @@ from ..contracts import FlightState, Position, position, positive
 
 
 class RotorPyAutopilot:
-    def __init__(self, model: str, initial: Position, speed: float, heading: float) -> None:
+    def __init__(
+        self, model: str, initial: Position, speed: float, heading: float
+    ) -> None:
         positive(speed, "speed")
         params = deepcopy({"hummingbird": hummingbird, "crazyflie": crazyflie}[model])
         params["motor_noise_std"] = 0.0
@@ -24,7 +26,9 @@ class RotorPyAutopilot:
             "q": np.array([0, 0, np.sin(self._yaw / 2), np.cos(self._yaw / 2)]),
             "w": np.zeros(3),
             "wind": np.zeros(3),
-            "rotor_speeds": np.full(4, sqrt(params["mass"] * 9.81 / (4 * params["k_eta"]))),
+            "rotor_speeds": np.full(
+                4, sqrt(params["mass"] * 9.81 / (4 * params["k_eta"]))
+            ),
         }
         self._speed = speed
         self._time = 0.0
@@ -55,9 +59,13 @@ class RotorPyAutopilot:
             if movement < distance:
                 velocity = offset * (self._speed / distance)
         flat = {
-            "x": self._reference.copy(), "x_dot": velocity,
-            "x_ddot": np.zeros(3), "x_dddot": np.zeros(3), "x_ddddot": np.zeros(3),
-            "yaw": self._yaw, "yaw_dot": 0.0,
+            "x": self._reference.copy(),
+            "x_dot": velocity,
+            "x_ddot": np.zeros(3),
+            "x_dddot": np.zeros(3),
+            "x_ddddot": np.zeros(3),
+            "yaw": self._yaw,
+            "yaw_dot": 0.0,
         }
         control = self._controller.update(self._time, self._raw, flat)
         self._raw = self._vehicle.step(self._raw, control, dt)

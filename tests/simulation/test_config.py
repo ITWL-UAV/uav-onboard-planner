@@ -12,7 +12,9 @@ def test_example_contains_both_aircraft_types() -> None:
     assert len({drone.name for drone in config.drones}) == len(config.drones)
 
 
-@pytest.mark.parametrize("content", ["[]", "backend: unknown", "!!python/object:os.system {}"])
+@pytest.mark.parametrize(
+    "content", ["[]", "backend: unknown", "!!python/object:os.system {}"]
+)
 def test_malformed_configuration_is_rejected(tmp_path: Path, content: str) -> None:
     path = tmp_path / "scenario.yaml"
     path.write_text(content)
@@ -20,10 +22,17 @@ def test_malformed_configuration_is_rejected(tmp_path: Path, content: str) -> No
         load_config(path)
 
 
-@pytest.mark.parametrize("field,value", [
-    ("time_step", 0), ("time_step", 0.1), ("duration", float("nan")),
-    ("seed", True), ("show_animation", "false"), ("sample_interval", 0.001),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("time_step", 0),
+        ("time_step", 0.1),
+        ("duration", float("nan")),
+        ("seed", True),
+        ("show_animation", "false"),
+        ("sample_interval", 0.001),
+    ],
+)
 def test_invalid_run_parameters(tmp_path: Path, field: str, value) -> None:
     data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
     data[field] = value
@@ -33,11 +42,20 @@ def test_invalid_run_parameters(tmp_path: Path, field: str, value) -> None:
         load_config(path)
 
 
-@pytest.mark.parametrize("field,value", [
-    ("name", ""), ("backend", "unknown"), ("model", "unknown"),
-    ("position", [0, 0]), ("position", [0, 0, -1]), ("speed", -1),
-    ("heading", float("inf")), ("waypoints", []), ("arrival_radius", 0),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("name", ""),
+        ("backend", "unknown"),
+        ("model", "unknown"),
+        ("position", [0, 0]),
+        ("position", [0, 0, -1]),
+        ("speed", -1),
+        ("heading", float("inf")),
+        ("waypoints", []),
+        ("arrival_radius", 0),
+    ],
+)
 def test_invalid_aircraft_parameters(tmp_path: Path, field: str, value) -> None:
     data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
     data["drones"][0][field] = value

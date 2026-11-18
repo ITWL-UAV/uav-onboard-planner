@@ -77,7 +77,9 @@ class JSBSimAutopilot:
         if self._target is not None:
             current = self.state.position
             east, north, altitude = self._target
-            self._fdm["ap/heading_setpoint"] = degrees(atan2(east - current[0], north - current[1])) % 360
+            self._fdm["ap/heading_setpoint"] = (
+                degrees(atan2(east - current[0], north - current[1])) % 360
+            )
             self._fdm["ap/altitude_setpoint"] = altitude / METRES_PER_FOOT
         self._fdm.set_dt(dt)
         if not self._fdm.run():

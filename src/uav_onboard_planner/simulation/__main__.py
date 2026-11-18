@@ -9,7 +9,9 @@ from .visualization import plot_trajectories
 def main() -> None:
     parser = argparse.ArgumentParser(description="Simulate aircraft waypoint missions.")
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True, help="New directory for this run")
+    parser.add_argument(
+        "--output", type=Path, required=True, help="New directory for this run"
+    )
     args = parser.parse_args()
     config = load_config(args.config)
     statuses = run(config, args.output)

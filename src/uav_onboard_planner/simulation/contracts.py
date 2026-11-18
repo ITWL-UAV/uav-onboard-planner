@@ -13,7 +13,7 @@ def positive(value: float, name: str) -> None:
 def position(value: Position) -> Position:
     if len(value) != 3 or any(isinstance(v, bool) or not isfinite(v) for v in value):
         raise ValueError("position must contain three finite coordinates")
-    return tuple(value)
+    return value[0], value[1], value[2]
 
 
 @dataclass(frozen=True)
@@ -41,7 +41,9 @@ class Mission:
     def __post_init__(self) -> None:
         if not self.waypoints:
             raise ValueError("mission must have at least one waypoint")
-        object.__setattr__(self, "waypoints", tuple(position(p) for p in self.waypoints))
+        object.__setattr__(
+            self, "waypoints", tuple(position(p) for p in self.waypoints)
+        )
         positive(self.arrival_radius, "arrival_radius")
 
 

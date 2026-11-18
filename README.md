@@ -28,6 +28,9 @@ Build a source distribution and wheel with:
 uv build
 ```
 
+Development checks and GitHub Actions are described in
+[docs/tooling.md](docs/tooling.md).
+
 ## Simulation
 
 ```sh
