@@ -298,18 +298,18 @@ Drzewo pokazuje pliki istotne dla architektury. Obecne punkty wejścia i adapter
 ├── pyproject.toml / uv.lock           pakowanie, grupy zależności i ich wersje
 ├── MANIFEST.in                        pliki dodatkowe w dystrybucji źródłowej
 ├── configs/
-│   ├── simulation/sensors/            profile symulowanych czujników
+│   ├── simulation/
+│   │   ├── sensors/                   profile symulowanych czujników
+│   │   └── scenarios/                 obsada, trasy i harmonogram przebiegu
+│   │       ├── default.yaml           domyślny przykład lotu dwóch pojazdów
+│   │       ├── route_change.yaml      zaplanowana zmiana trasy
+│   │       └── mission_cancellation.yaml  anulowanie misji i przerwa w pomiarach
 │   ├── vehicles/quadrotor.yaml        typ pojazdu, model dynamiki i możliwości
 │   ├── sensors/survey.yaml            wyposażenie, częstotliwości, opóźnienia
 │   ├── ground_station/local.yaml      adapter wejścia operatora i interpretacji
 │   ├── perception/default.yaml        wersje modeli i ich wejścia
 │   ├── decision/default.yaml          wariant inferencji i budżet obliczeń
 │   └── training/baseline.yaml         zbiory scenariuszy, ziarna, warunki oceny
-├── scenarios/
-│   └── simulation/                    obsada, trasy i harmonogram przebiegu
-│       ├── default.yaml               domyślny przykład lotu dwóch pojazdów
-│       ├── route_change.yaml          zaplanowana zmiana trasy
-│       └── mission_cancellation.yaml  anulowanie misji i przerwa w pomiarach
 ├── src/uav_onboard_planner/
 │   ├── mission/
 │   │   ├── instructions.py            hierarchia instrukcji i aktualny kontekst

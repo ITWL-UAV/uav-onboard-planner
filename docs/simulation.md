@@ -9,7 +9,7 @@ modelować drona wykonującego misję i pozostały ruch w otoczeniu.
 ```sh
 uv sync
 uv run python -m uav_onboard_planner.simulation \
-  --config scenarios/simulation/default.yaml \
+  --config configs/simulation/scenarios/default.yaml \
   --output /tmp/uav-flight-001
 ```
 
@@ -32,8 +32,8 @@ kroku. Przy limicie czasu status przebiegu to `finished`, a przy błędzie kroku
 
 ## Konfiguracja
 
-Scenariusze lotu są w `scenarios/simulation/`. Domyślny przykład to
-`scenarios/simulation/default.yaml`. Profile wielokrotnego użytku są
+Scenariusze lotu są w `configs/simulation/scenarios/`. Domyślny przykład to
+`configs/simulation/scenarios/default.yaml`. Profile wielokrotnego użytku są
 w `configs/simulation/`. Przekaż ścieżkę do scenariusza przez `--config`.
 Archiwum źródłowe zawiera przykładowe scenariusze i profile.
 
@@ -55,7 +55,7 @@ niezamierzonego wariantu. YAML jest odczytywany przez `safe_load`.
 
 Każdy typ czujnika ma własny moduł w `simulation/sensors/` i osobny plik
 ustawień w `configs/simulation/sensors/`. W scenariuszu zmiany trasy wpis
-`altimeter: ../../configs/simulation/sensors/altimeter.yaml` włącza
+`altimeter: ../sensors/altimeter.yaml` włącza
 wysokościomierz dla pojazdu.
 Ścieżka względna jest liczona od katalogu pliku scenariusza.
 [Konfiguracja wysokościomierza](../configs/simulation/sensors/altimeter.yaml)
@@ -74,10 +74,10 @@ próbka początkowa i końcowa zawsze są zapisywane.
 
 ## Zaplanowana zmiana trasy i anulowanie misji
 
-[Scenariusz z jednym quadkopterem](../scenarios/simulation/route_change.yaml)
+[Scenariusz z jednym quadkopterem](../configs/simulation/scenarios/route_change.yaml)
 rozpoczyna lot po dwóch punktach. Po 2 s zastępuje pozostałą trasę jednym
 nowym punktem. Uruchom go tą samą komendą co przykład domyślny, podając
-`--config scenarios/simulation/route_change.yaml` i nowy katalog wyników.
+`--config configs/simulation/scenarios/route_change.yaml` i nowy katalog wyników.
 
 Każda zmiana określa `time` w sekundach od początku, `drone`, `waypoints`
 i `arrival_radius`. Czas musi wypadać wewnątrz epizodu. Dwie zmiany dla
@@ -93,10 +93,10 @@ status `cancelled`. Pojazd przechodzi w tryb podtrzymania lotu swojego
 adaptera, a pozostałe loty trwają według ich misji. Ukończona wcześniej
 misja zachowuje status `completed`.
 
-[Scenariusz anulowania](../scenarios/simulation/mission_cancellation.yaml)
+[Scenariusz anulowania](../configs/simulation/scenarios/mission_cancellation.yaml)
 zmienia trasę quadkoptera po 1 s, anuluje jego misję po 2,505 s i prowadzi
 lot stałopłata do końca epizodu. Uruchom go z
-`--config scenarios/simulation/mission_cancellation.yaml`.
+`--config configs/simulation/scenarios/mission_cancellation.yaml`.
 
 Do uruchomienia w pamięci służy `create_episode(load_config(path))` z modułów
 `runner` i `config`. `snapshot()` zwraca bieżące próbki lotu, `step()`

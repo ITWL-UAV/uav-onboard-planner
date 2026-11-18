@@ -79,7 +79,7 @@ def _parse_config(data: object, directory: Path) -> SimulationConfig:
         "drones",
     }:
         raise ValueError(
-            "invalid simulation fields; see scenarios/simulation/default.yaml"
+            "invalid simulation fields; see configs/simulation/scenarios/default.yaml"
         )
     for key in ("time_step", "duration", "sample_interval"):
         positive(data[key], key)

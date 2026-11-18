@@ -35,7 +35,7 @@ Development checks and GitHub Actions are described in
 
 ```sh
 uv run python -m uav_onboard_planner.simulation \
-  --config scenarios/simulation/default.yaml \
+  --config configs/simulation/scenarios/default.yaml \
   --output /tmp/uav-flight-001
 ```
 
@@ -59,11 +59,10 @@ tests/
 configs/
     simulation/
         sensors/
-scenarios/
-    simulation/
-        default.yaml
-        route_change.yaml
-        mission_cancellation.yaml
+        scenarios/
+            default.yaml
+            route_change.yaml
+            mission_cancellation.yaml
 docs/
     simulation.md
 pyproject.toml
