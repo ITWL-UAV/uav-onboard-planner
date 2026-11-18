@@ -18,6 +18,7 @@ from .config import PromptProfile, parse_fields
 type Vector = tuple[float, ...]
 type VectorValue = Vector | tuple[Vector, ...]
 type FieldVectors = VectorValue | dict[str, VectorValue]
+MIN_CONFIDENCE = 0.6
 
 
 def _texts(value: FieldValue) -> Iterator[str]:
@@ -55,6 +56,12 @@ class Encoder(Protocol):
 
 
 @dataclass(frozen=True)
+class Interpretation:
+    fields: dict[str, object]
+    confidence: dict[str, float]
+
+
+@dataclass(frozen=True)
 class Reply:
     instruction: InstructionType | None = None
     sites: tuple[str, ...] = ()
@@ -65,6 +72,19 @@ class Reply:
     vectors_by_field: dict[str, FieldVectors] | None = None
     field_names: tuple[str, ...] = ()
     missing_required: tuple[str, ...] = ()
+    confidence: dict[str, float] | None = None
+
+    @property
+    def low_confidence(self) -> tuple[str, ...]:
+        return tuple(
+            name
+            for name, score in (self.confidence or {}).items()
+            if score < MIN_CONFIDENCE
+        )
+
+    @property
+    def needs_clarification(self) -> bool:
+        return bool(self.missing_required or self.low_confidence)
 
     def to_json(self, *, indent: int | None = None) -> str:
         draft = (
@@ -81,6 +101,12 @@ class Reply:
         }
         if self.missing_required:
             data["missing_required"] = self.missing_required
+        if self.confidence is not None:
+            data["confidence"] = self.confidence
+        if self.low_confidence:
+            data["low_confidence"] = self.low_confidence
+        if self.needs_clarification:
+            data["needs_clarification"] = True
         if self.embeddings is not None:
             data["embeddings"] = {
                 "model": self.embeddings.model,
@@ -184,6 +210,11 @@ class Session:
                 ensure_ascii=False,
             )
         )
+        confidence = (
+            proposal.confidence if isinstance(proposal, Interpretation) else None
+        )
+        if isinstance(proposal, Interpretation):
+            proposal = proposal.fields
         question = _question(proposal)
         if question is not None or proposal == {}:
             self._clarification += (text, question) if question is not None else (text,)
@@ -193,6 +224,7 @@ class Session:
                 draft={"task": "inspection"},
                 field_names=("task", "sites"),
                 missing_required=("sites",),
+                confidence=confidence,
             )
         if (
             not isinstance(proposal, dict)
@@ -209,6 +241,8 @@ class Session:
         sites: tuple[str, ...] = tuple(site.strip() for site in proposal["sites"])
         if len(set(sites)) != len(sites):
             raise ValueError("szkic zawiera powtórzone miejsca")
+        if any(score < MIN_CONFIDENCE for score in (confidence or {}).values()):
+            return Reply(instruction, sites, confidence=confidence)
         embeddings = self._encode(sites)
         if self._original_instruction is None:
             self._original_instruction = (
@@ -216,12 +250,13 @@ class Session:
             )
         self._sites = sites
         self._clarification = ()
-        return Reply(instruction, sites, embeddings)
+        return Reply(instruction, sites, embeddings, confidence=confidence)
 
     def _submit(self, text: str, mission: Mission) -> Reply:
         reply = self._interpret(text, mission)
-        if reply.missing_required:
-            self._clarification += (text,)
+        if reply.needs_clarification:
+            if reply.confidence is None:
+                self._clarification += (text,)
             return reply
         assert reply.draft is not None
         original = self._clarification[0] if self._clarification else text
@@ -252,21 +287,27 @@ class Session:
                 ensure_ascii=False,
             )
         )
-        draft = parse_fields(
-            prompt.fields, {} if _question(proposal) is not None else proposal
+        confidence = (
+            proposal.confidence if isinstance(proposal, Interpretation) else None
         )
+        if isinstance(proposal, Interpretation):
+            proposal = proposal.fields
+        draft = parse_fields(prompt.fields, proposal)
         missing = tuple(
             name
             for name, field in prompt.fields.items()
             if field.required and name not in draft
         )
-        if missing:
+        if missing or any(
+            score < MIN_CONFIDENCE for score in (confidence or {}).values()
+        ):
             return Reply(
                 instruction=kind,
                 schema_version=profile.schema_version,
                 draft=draft,
                 field_names=tuple(prompt.fields),
                 missing_required=missing,
+                confidence=confidence,
             )
 
         texts = tuple(
@@ -295,4 +336,5 @@ class Session:
             draft=draft,
             vectors_by_field=vectors_by_field,
             field_names=tuple(prompt.fields),
+            confidence=confidence,
         )

@@ -5,7 +5,7 @@ import pytest
 import yaml
 
 from uav_onboard_planner.nlp.config import PromptProfile, load_prompt
-from uav_onboard_planner.nlp.session import Embeddings, Session
+from uav_onboard_planner.nlp.session import Embeddings, Interpretation, Session
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 CARGO_PROFILE = FIXTURES / "cargo_profile.yaml"
@@ -122,6 +122,32 @@ def test_destination_must_be_text(cargo_profile: PromptProfile) -> None:
         session.submit(message)
     assert session.user_instruction is None
     assert not encoder.calls
+
+
+def test_low_confidence_requires_a_more_precise_prompt(
+    cargo_profile: PromptProfile,
+) -> None:
+    first, precise = "Deliver near point B.", "Deliver to point B."
+    interpreter = Interpreter(
+        {
+            first: Interpretation({"target": "point B."}, {"target": 0.59}),
+            precise: Interpretation({"target": "point B."}, {"target": 0.6}),
+        }
+    )
+    encoder = Encoder()
+    session = Session(interpreter, encoder, cargo_profile)
+
+    reply = session.submit(first)
+    assert reply.draft == {"target": "point B."}
+    assert reply.confidence == {"target": 0.59}
+    assert reply.low_confidence == ("target",)
+    assert reply.needs_clarification
+    assert session.user_instruction is None
+    assert not encoder.calls
+
+    assert not session.submit(precise).needs_clarification
+    assert session.user_instruction == precise
+    assert encoder.calls == [("point B.",)]
 
 
 def test_invalid_edits_preserve_original_instruction(

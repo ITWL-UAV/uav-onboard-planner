@@ -86,7 +86,7 @@ W pierwszym prototypie stacja naziemna ma przyjmować kolejne wypowiedzi w ramac
 - **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie po angielsku, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Transport crate A to point B” może wpisać „Deliver it to point C instead”. CLI pokazuje pełny szkic JSON, w tym brakujące pola i embeddingi przyjętych poleceń.
 - **Scenariusz YAML.** Odtwarzacz podaje wypowiedzi do tego samego modułu rozmowy w kolejności i chwilach zdefiniowanych w scenariuszu. Czas liczy się od początku epizodu według zegara symulacji. Odtwarzacz przekazuje oryginalny tekst, dzięki czemu test obejmuje również jego interpretację.
 
-System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Zwraca odpowiedzi tekstowe. Moduł rozmowy sprawdza je względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Brakujące wartości w szkicu otrzymują `null`. Braki w polach wymaganych zachowują ostatnią zaakceptowaną interpretację do czasu uzupełnienia. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
+System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Wybiera dosłowny fragment wypowiedzi albo brak odpowiedzi. Moduł rozmowy sprawdza wynik względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Brakujące wartości w szkicu otrzymują `null`. Brak wymaganego pola lub wynik poniżej `0.6` pozostawia ostatnią zaakceptowaną instrukcję i wymaga precyzyjniejszej wypowiedzi. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
 
 Na potrzeby prototypu wybieramy wariant z §3.3, w którym oddzielny enkoder oblicza embeddingi wskazanych pól tekstowych po walidacji JSON. Wynikowy JSON zachowuje jawne wartości pól i przypisuje wektor do konkretnego pola wraz z identyfikatorem i wersją enkodera oraz wymiarem wektora. Liczby, jednostki i identyfikatory pozostają jawne także po edycji. Docelowy format transmisji pozostaje otwarty.
 
@@ -152,11 +152,6 @@ Stacja przyjmuje `SYSTEM` i `GENERAL_INSTRUCTION` jako gotowy kontekst. Dla wypo
 
 W katalogu głównym repozytorium planowany jest folder `scenarios/`. Każdy plik ma grupować rozmowy o zbliżonym przebiegu i zawierać wiele naturalnych sformułowań, w tym skróty, parafrazy oraz odwołania do wcześniejszych tur.
 
-| Planowany plik | Przykładowa zawartość |
-| --- | --- |
-| `scenarios/cargo.yaml` | Polecenia transportu ładunku w różnych sformułowaniach. |
-| `scenarios/cargo_edits.yaml` | Rozmowy wieloturowe ze zmianą miejsca dostawy. |
-| `scenarios/clarifications.yaml` | Polecenia niejednoznaczne, oczekiwane pytanie i odpowiedź operatora rozwiązująca niejasność. |
 
 Każda rozmowa ma identyfikator i uporządkowaną listę tur. Tura określa czas w sekundach i tekst lub listę równoważnych wypowiedzi. Kolejne tury jednej rozmowy muszą mieć sens dla każdego jej wariantu. Warianty prowadzące do innej odpowiedzi operatora zapisujemy jako osobne rozmowy. Odtwarzacz ma zapisywać identyfikator rozmowy, ziarno i faktycznie wybrane zdania, aby można było powtórzyć dokładną sekwencję wejść.
 

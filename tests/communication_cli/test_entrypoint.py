@@ -68,6 +68,7 @@ def test_terminal_and_replay_return_the_same_replies() -> None:
         "instruction": "USER_INSTRUCTION",
         "draft": {"activity": "transport", "target": None, "constraints": None},
         "missing_required": ["target"],
+        "needs_clarification": True,
     }
     assert (instruction["instruction"], instruction["draft"]["target"]) == (
         "USER_INSTRUCTION",

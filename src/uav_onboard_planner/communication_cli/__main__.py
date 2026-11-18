@@ -17,15 +17,21 @@ def run_terminal(
     session: Session, source: TextIO, output: TextIO, errors: TextIO
 ) -> None:
     interactive = source.isatty()
+    prompt = "User prompt: "
     while True:
         if interactive:
-            print("User prompt: ", end="", file=errors, flush=True)
+            print(prompt, end="", file=errors, flush=True)
         line = source.readline()
         if not line:
             return
         if line.strip():
             try:
                 reply = session.submit(line.strip())
+                prompt = (
+                    "More precise user prompt: "
+                    if reply.needs_clarification
+                    else "User prompt: "
+                )
                 print(
                     reply.to_json(indent=2 if interactive else None),
                     file=output,
