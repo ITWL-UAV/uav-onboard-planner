@@ -6,8 +6,8 @@ import yaml
 from uav_onboard_planner.simulation.config import load_config
 
 
-def test_example_contains_both_aircraft_types() -> None:
-    config = load_config(Path("configs/simulation/default.yaml"))
+def test_load_config_accepts_both_aircraft_types(simulation_config_path: Path) -> None:
+    config = load_config(simulation_config_path)
     assert {drone.backend for drone in config.drones} == {"rotorpy", "jsbsim"}
     assert len({drone.name for drone in config.drones}) == len(config.drones)
 
@@ -33,8 +33,10 @@ def test_malformed_configuration_is_rejected(tmp_path: Path, content: str) -> No
         ("sample_interval", 0.001),
     ],
 )
-def test_invalid_run_parameters(tmp_path: Path, field: str, value) -> None:
-    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+def test_invalid_run_parameters(
+    tmp_path: Path, simulation_config_path: Path, field: str, value
+) -> None:
+    data = yaml.safe_load(simulation_config_path.read_text())
     data[field] = value
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(data))
@@ -56,8 +58,10 @@ def test_invalid_run_parameters(tmp_path: Path, field: str, value) -> None:
         ("arrival_radius", 0),
     ],
 )
-def test_invalid_aircraft_parameters(tmp_path: Path, field: str, value) -> None:
-    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+def test_invalid_aircraft_parameters(
+    tmp_path: Path, simulation_config_path: Path, field: str, value
+) -> None:
+    data = yaml.safe_load(simulation_config_path.read_text())
     data["drones"][0][field] = value
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(data))
@@ -65,8 +69,10 @@ def test_invalid_aircraft_parameters(tmp_path: Path, field: str, value) -> None:
         load_config(path)
 
 
-def test_duplicate_names_are_rejected(tmp_path: Path) -> None:
-    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+def test_duplicate_names_are_rejected(
+    tmp_path: Path, simulation_config_path: Path
+) -> None:
+    data = yaml.safe_load(simulation_config_path.read_text())
     data["drones"][1]["name"] = data["drones"][0]["name"]
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(data))

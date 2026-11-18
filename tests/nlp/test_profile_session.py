@@ -6,14 +6,15 @@ import pytest
 from uav_onboard_planner.nlp.config import load_prompt
 from uav_onboard_planner.nlp.session import Embeddings, Session
 
+CARGO_PROFILE = Path(__file__).resolve().parents[1] / "fixtures" / "cargo_profile.yaml"
+
 
 def test_general_defaults_reject_unknown_fields(
     tmp_path: Path,
 ) -> None:
-    template = Path("tests/fixtures/cargo_profile.yaml")
-    path = tmp_path / template.name
+    path = tmp_path / CARGO_PROFILE.name
     path.write_text(
-        template.read_text(encoding="utf-8").replace(
+        CARGO_PROFILE.read_text(encoding="utf-8").replace(
             "GENERAL_INSTRUCTION:\n  source: profile\n  fields:\n",
             "GENERAL_INSTRUCTION:\n  source: profile\n  fields:\n    unexpected: value\n",
         ),
@@ -24,10 +25,9 @@ def test_general_defaults_reject_unknown_fields(
 
 
 def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
-    template = Path("tests/fixtures/cargo_profile.yaml")
-    path = tmp_path / template.name
+    path = tmp_path / CARGO_PROFILE.name
     path.write_text(
-        template.read_text(encoding="utf-8").replace(
+        CARGO_PROFILE.read_text(encoding="utf-8").replace(
             "constraints: false", "constraints: 'false'", 1
         ),
         encoding="utf-8",
@@ -37,7 +37,7 @@ def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
 
 
 def test_transport_requires_one_text_target_from_the_operator() -> None:
-    profile = load_prompt(Path("tests/fixtures/cargo_profile.yaml"))
+    profile = load_prompt(CARGO_PROFILE)
     responses = iter(
         [
             {

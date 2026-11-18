@@ -10,10 +10,10 @@ from uav_onboard_planner.simulation.runner import run
 
 
 @pytest.mark.integration
-def test_run_records_both_aircraft_and_configuration(tmp_path: Path) -> None:
-    config = replace(
-        load_config(Path("configs/simulation/default.yaml")), duration=0.05
-    )
+def test_run_records_both_aircraft_and_configuration(
+    tmp_path: Path, simulation_config_path: Path
+) -> None:
+    config = replace(load_config(simulation_config_path), duration=0.05)
     output = tmp_path / "run"
     statuses = run(config, output)
     with (output / "trajectory.csv").open() as stream:
@@ -32,10 +32,10 @@ def test_run_records_both_aircraft_and_configuration(tmp_path: Path) -> None:
 @pytest.mark.integration
 @pytest.mark.parametrize("duration", [0.07, 0.1, 0.3])
 def test_final_sample_is_not_duplicated_by_rounding(
-    tmp_path: Path, duration: float
+    tmp_path: Path, simulation_config_path: Path, duration: float
 ) -> None:
     config = replace(
-        load_config(Path("configs/simulation/default.yaml")),
+        load_config(simulation_config_path),
         duration=duration,
         sample_interval=duration,
     )

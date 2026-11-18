@@ -23,16 +23,14 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
     from uav_onboard_planner.nlp.scenario import load_conversation
     from uav_onboard_planner.nlp.session import Embeddings, Session
 
-    profile = load_prompt(Path("tests/fixtures/cargo_profile.yaml"))
+    tests = Path(__file__).resolve().parents[1]
+    profile = load_prompt(tests / "fixtures" / "cargo_profile.yaml")
     assert isinstance(profile, PromptProfile)
     system = profile.prompts["SYSTEM"]
     general = profile.prompts["GENERAL_INSTRUCTION"]
-    conversation = load_conversation(
-        Path("scenarios/clarifications.yaml"), "missing-destination", 5
-    )
-    assert conversation == load_conversation(
-        Path("scenarios/clarifications.yaml"), "missing-destination", 5
-    )
+    scenario = tests / "scenarios" / "clarifications.yaml"
+    conversation = load_conversation(scenario, "missing-destination", 5)
+    assert conversation == load_conversation(scenario, "missing-destination", 5)
     assert [turn.time for turn in conversation.turns] == [0.0, 2.0, 6.0, 9.0]
 
     class Interpreter:

@@ -136,6 +136,7 @@ uv run pytest -m integration
 uv build
 ```
 
-Testy integracyjne pracują na CPU, bez sieci i sprzętu. Sprawdzają dotarcie do
+Testy integracyjne pracują na CPU, bez sieci i sprzętu. Do testów konfiguracji
+i zapisu przebiegu służy plik `tests/fixtures/simulation.yaml`. Testy sprawdzają dotarcie do
 punktów, podtrzymanie lotu, powtarzalność i zapis scenariusza. Nie stanowią
 kalibracji dynamiki ani potwierdzenia bezpieczeństwa rzeczywistego lotu.

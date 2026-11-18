@@ -95,10 +95,5 @@ Pliki w [scenarios/](../scenarios/) zawierają czasy i wypowiedzi operatora.
 Oczekiwane typy instrukcji i wartości pól sprawdzają testy w katalogach
 `tests/nlp/` i `tests/communication_cli/`.
 
-Testy mają osobny profil w `tests/fixtures/cargo_profile.yaml`. Test
-z rzeczywistymi modelami można uruchomić osobno po instalacji zależności
-NLP. Pierwsze uruchomienie może pobrać wagi.
-
-```sh
-UAV_TEST_MODELS=1 uv run --extra nlp pytest -q tests/nlp/test_cargo_models.py
-```
+Testy korzystają z własnego profilu w `tests/fixtures/`, własnych
+wypowiedzi w `tests/scenarios/` i atrap modeli z ustalonymi odpowiedziami.
