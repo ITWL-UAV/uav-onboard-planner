@@ -1,0 +1,25 @@
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions: {}
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Conventional Commit title
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as stream:
+              title = json.load(stream)["pull_request"]["title"]
+          pattern = r"(feat|fix|refactor|docs|test|ci|build|perf|style|chore|revert)(\([^()\r\n]+\))?!?: [^\s].*"
+          if not re.fullmatch(pattern, title):
+              raise SystemExit("Use a Conventional Commit PR title, e.g. feat(simulation): add flight simulation")
+          PY
