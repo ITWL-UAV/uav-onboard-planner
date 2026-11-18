@@ -1,0 +1,11 @@
+change-destination:
+  - time: 0
+    text:
+      - Transport crate A to point B.
+      - Deliver crate A to point B.
+  - time: 4
+    text:
+      - Deliver it to point C instead.
+      - Change the destination to point C.
+  - time: 8
+    text: Use the original destination again.

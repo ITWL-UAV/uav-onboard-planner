@@ -11,7 +11,6 @@ from ..mission.instructions import (
     Instruction,
     InstructionType,
     Mission,
-    OperatorInstruction,
     TextValue,
 )
 from .config import PromptProfile, parse_fields
@@ -210,16 +209,7 @@ class Session:
         return Reply(instruction, sites, embeddings)
 
     def _submit(self, text: str, mission: Mission) -> Reply:
-        reply = self._interpret(
-            mission.next_instruction,
-            text,
-            {
-                "system": _context(mission.system),
-                "active_instruction": _context(mission.active),
-                "accepted_changes": [_context(change) for change in mission.changes],
-                "pending_clarification": self._clarification,
-            },
-        )
+        reply = self._interpret(text, mission)
         if reply.question is not None:
             return self._ask(text, reply.question)
         assert reply.draft is not None
@@ -228,11 +218,10 @@ class Session:
         self._clarification = ()
         return reply
 
-    def _interpret(
-        self, kind: OperatorInstruction, text: str, context: dict[str, object]
-    ) -> Reply:
+    def _interpret(self, text: str, mission: Mission) -> Reply:
         assert self._profile is not None
         profile = self._profile
+        kind = mission.next_instruction
         prompt = profile.prompts[kind]
         proposal = self._interpreter.interpret(
             json.dumps(
@@ -242,7 +231,12 @@ class Session:
                         name: asdict(field) for name, field in prompt.fields.items()
                     },
                     "operator_message": text,
-                    **context,
+                    "system": _context(mission.system),
+                    "active_instruction": _context(mission.active),
+                    "accepted_changes": [
+                        _context(change) for change in mission.changes
+                    ],
+                    "pending_clarification": self._clarification,
                 },
                 ensure_ascii=False,
             )
@@ -258,7 +252,7 @@ class Session:
         ]
         if missing:
             return Reply(
-                question=f"Czy możesz doprecyzować: {', '.join(missing)}?",
+                question=f"Could you clarify: {', '.join(missing)}?",
                 schema_version=profile.schema_version,
             )
 

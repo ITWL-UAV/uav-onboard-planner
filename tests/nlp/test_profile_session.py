@@ -7,23 +7,24 @@ from uav_onboard_planner.nlp.config import load_prompt
 from uav_onboard_planner.nlp.session import Embeddings, Session
 
 
-def test_general_defaults_must_match_the_user_instruction_schema(
+def test_general_defaults_reject_unknown_fields(
     tmp_path: Path,
 ) -> None:
-    template = Path("configs/nlp/prompts/uav_general_template.yaml")
+    template = Path("configs/nlp/prompts/cargo_template.yaml")
     path = tmp_path / template.name
     path.write_text(
         template.read_text(encoding="utf-8").replace(
-            "target: {area: designated area}", "target: {}"
+            "GENERAL_INSTRUCTION:\n  source: profile\n  fields:\n",
+            "GENERAL_INSTRUCTION:\n  source: profile\n  fields:\n    unexpected: value\n",
         ),
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match=r"GENERAL_INSTRUCTION\.fields.*target"):
+    with pytest.raises(ValueError, match=r"GENERAL_INSTRUCTION\.fields.*unexpected"):
         load_prompt(path)
 
 
 def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
-    template = Path("configs/nlp/prompts/uav_general_template.yaml")
+    template = Path("configs/nlp/prompts/cargo_template.yaml")
     path = tmp_path / template.name
     path.write_text(
         template.read_text(encoding="utf-8").replace(
@@ -35,17 +36,22 @@ def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
         load_prompt(path)
 
 
-def test_transport_embeds_cargo_and_destination_by_role() -> None:
-    profile = load_prompt(Path("configs/nlp/prompts/uav_general_template.yaml"))
+def test_transport_requires_one_text_target_from_the_operator() -> None:
+    profile = load_prompt(Path("configs/nlp/prompts/cargo_template.yaml"))
     responses = iter(
         [
             {
                 "activity": "transport",
-                "target": {"cargo": ["crate A"], "destination": 2},
+                "target": {"cargo": "crate A", "destination": "point B"},
             },
+            {"activity": "transport"},
             {
                 "activity": "transport",
-                "target": {"cargo": "crate A", "destination": "point B"},
+                "target": "crate A to point B",
+            },
+            {
+                "change": "Use point C",
+                "target": "crate A to point C",
             },
         ]
     )
@@ -56,20 +62,29 @@ def test_transport_embeds_cargo_and_destination_by_role() -> None:
 
     class Encoder:
         def encode(self, texts: tuple[str, ...]) -> Embeddings:
-            assert texts == ("transport", "crate A", "point B")
-            return Embeddings("encoder", "v1", ((1.0,), (2.0,), (3.0,)))
+            assert texts in (
+                ("transport", "crate A to point B"),
+                ("Use point C", "crate A to point C"),
+            )
+            return Embeddings("encoder", "v1", ((1.0,), (2.0,)))
 
     session = Session(Interpreter(), Encoder(), profile)
-    with pytest.raises(ValueError, match="target.*destination"):
+    assert "target" not in session.mission.active.fields
+    with pytest.raises(ValueError, match="target"):
         session.submit("Deliver crate A to point B.")
     assert session.user_instruction is None
 
-    reply = json.loads(session.submit("Deliver crate A to point B.").to_json())
-    assert reply["draft"]["target"] == {"cargo": "crate A", "destination": "point B"}
-    assert reply["embeddings"]["fields"]["target"] == {
-        "cargo": [2.0],
-        "destination": [3.0],
-    }
+    incomplete = session.submit("Deliver crate A.")
+    assert incomplete.question and "target" in incomplete.question
+    assert session.user_instruction is None
+
+    reply = json.loads(session.submit("To point B.").to_json())
+    assert reply["instruction"] == "USER_INSTRUCTION"
+    assert reply["draft"]["target"] == "crate A to point B"
+    assert reply["embeddings"]["fields"]["target"] == [2.0]
+
+    assert session.submit("Use point C.").instruction == "USER_PROMPT"
+    assert session.mission.active.fields["activity"] == "transport"
 
 
 def test_profile_drives_hierarchy_and_validates_before_encoding(tmp_path: Path) -> None:

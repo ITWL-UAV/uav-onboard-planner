@@ -4,10 +4,7 @@ from math import isfinite
 from pathlib import Path
 from random import Random
 from sys import float_info
-from typing import Literal
 
-from ..mission.instructions import FieldValue
-from .config import parse_text_map
 from .session import Reply, Session
 
 
@@ -15,17 +12,6 @@ from .session import Reply, Session
 class Turn:
     time: float
     text: str
-    expected: dict[str, FieldValue] | Literal[True] | None
-
-    def matches(self, reply: Reply) -> bool:
-        if self.expected is None:
-            return True
-        if self.expected is True:
-            return reply.question is not None
-        draft = reply.draft if reply.draft is not None else {"sites": reply.sites}
-        return reply.question is None and all(
-            draft.get(name) == value for name, value in self.expected.items()
-        )
 
 
 @dataclass(frozen=True)
@@ -33,35 +19,6 @@ class Conversation:
     identifier: str
     seed: int
     turns: tuple[Turn, ...]
-
-
-def _expected(
-    value: object, label: str
-) -> dict[str, FieldValue] | Literal[True] | None:
-    if value is None or value is True:
-        return value
-    if not isinstance(value, dict) or not value:
-        raise ValueError(f"{label}: expected must be true or contain draft fields")
-    fields: dict[str, FieldValue] = {}
-    for name, field in value.items():
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"{label}: expected field names must be nonempty text")
-        if isinstance(field, str) and field.strip():
-            fields[name] = field
-        elif isinstance(field, list) and all(
-            isinstance(item, str) and item.strip() for item in field
-        ):
-            fields[name] = tuple(field)
-        elif isinstance(field, dict):
-            try:
-                fields[name] = parse_text_map(field)
-            except ValueError as error:
-                raise ValueError(
-                    f"{label}: invalid expected field {name}: {error}"
-                ) from error
-        else:
-            raise ValueError(f"{label}: invalid expected field {name}")
-    return fields
 
 
 def load_conversation(path: Path, identifier: str, seed: int) -> Conversation:
@@ -89,12 +46,8 @@ def load_conversation(path: Path, identifier: str, seed: int) -> Conversation:
     previous = 0.0
     for index, entry in enumerate(entries, 1):
         label = f"{path}: {identifier}, turn {index}"
-        if (
-            not isinstance(entry, dict)
-            or not {"time", "text"} <= entry.keys()
-            or entry.keys() - {"time", "text", "expected"}
-        ):
-            raise ValueError(f"{label}: expected time, text and optional expected")
+        if not isinstance(entry, dict) or entry.keys() != {"time", "text"}:
+            raise ValueError(f"{label}: expected time and text")
         time = entry["time"]
         if type(time) not in (float, int) or not previous <= time <= float_info.max:
             raise ValueError(f"{label}: time must be finite, nonnegative and ordered")
@@ -107,9 +60,8 @@ def load_conversation(path: Path, identifier: str, seed: int) -> Conversation:
             or any(not isinstance(text, str) or not text.strip() for text in variants)
         ):
             raise ValueError(f"{label}: text must contain at least one utterance")
-        expected = _expected(entry.get("expected"), label)
         previous = float(time)
-        turns.append(Turn(previous, random.choice(variants), expected))
+        turns.append(Turn(previous, random.choice(variants)))
     return Conversation(identifier, seed, tuple(turns))
 
 

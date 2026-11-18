@@ -17,9 +17,9 @@ uv sync --extra nlp
 uv run --extra nlp python -m uav_onboard_planner.communication_cli
 ```
 
-Wpisz np. „Zaplanuj inspekcję dachu A i dachu B”, a potem „Jednak pomiń
-drugi dach”. Każdy wiersz wyjścia to osobny obiekt JSON. Zakończ wejście
-przez Ctrl+D albo użyj `--text "Zaplanuj inspekcję dachu A"` do wykonania
+Wpisuj polecenia po angielsku, np. „Transport crate A to point B”, a potem
+„Deliver it to point C instead”. Każdy wiersz wyjścia to osobny obiekt JSON.
+Zakończ wejście przez Ctrl+D albo użyj `--text "Transport crate A to point B"` do wykonania
 pojedynczej tury. Pierwsze użycie pobiera skonfigurowane wagi z Hugging
 Face. Oba modele działają na urządzeniu wskazanym w ich profilach.
 
@@ -29,7 +29,7 @@ Face. Oba modele działają na urządzeniu wskazanym w ich profilach.
 | --- | --- |
 | [System One](../configs/nlp/systemone/default.ini) | Identyfikator modelu z Hugging Face, rewizja, urządzenie, precyzja `bfloat16` lub `float16`, łączny limit tokenów wejścia i generacji, limit generacji, ścieżka promptu. |
 | [Embeddingi](../configs/nlp/embeddings/default.ini) | Model i rewizja, urządzenie, precyzja, limit tokenów na tekst, rozmiar partii, pooling i normalizacja. |
-| [Profil ogólny UAV](../configs/nlp/prompts/uav_general_template.yaml) | Teksty domyślne i pytania dla czterech typów instrukcji. Ścieżka w profilu System One jest względna wobec tego profilu. |
+| [Profil transportowy](../configs/nlp/prompts/cargo_template.yaml) | Teksty domyślne i pytania dla misji transportowej. |
 
 Profil można podmienić przez `--systemone-config` albo `--embedding-config`.
 Ustawienie `device = auto` wybiera CUDA, MPS lub CPU w tej kolejności.
@@ -47,7 +47,7 @@ tokenów. Sprawdź wymagane pooling i normalizację na karcie wybranego modelu.
 
 Sesja wczytuje `SYSTEM` i `GENERAL_INSTRUCTION` bez interpretacji i wektoryzacji.
 `SYSTEM` jest dosłownym kontekstem przeznaczenia drona. Domyślne zadanie
-polega na obserwowaniu wyznaczonego obszaru. Pierwsza przyjęta wypowiedź staje
+określa typ czynności. Pierwsza przyjęta wypowiedź staje
 się `USER_INSTRUCTION` i zastępuje całe domyślne zadanie.
 Kolejne wypowiedzi stają się zmianami `USER_PROMPT`. Sesja przekazuje
 modelowi pierwotne polecenie, zaakceptowane zmiany i oczekujące doprecyzowanie.
@@ -56,14 +56,15 @@ Pytanie o doprecyzowanie pozostawia zaakceptowany stan i nie wywołuje enkodera.
 Szkic zawiera `schema_version`, `instruction` oraz jawne pola w `draft`.
 `USER_INSTRUCTION` ma wymagane `activity` i `target` oraz opcjonalną listę
 `constraints`. `USER_PROMPT` ma `change`, zaktualizowany `target`
-i opcjonalne zmiany ograniczeń. `target` jest mapą, np.
-`{area: las}`, `{direction: zachód}` albo `{cargo: skrzynia A, destination: punkt B}`.
+i opcjonalne zmiany ograniczeń. `target` to krótka fraza podawana przez
+operatora, np. `crate A to point B`. Aplikacja prosi o doprecyzowanie,
+gdy model pominie wymagane pole.
 
 `embeddings` podaje identyfikator modelu, rewizję, wymiar i wektory
-według nazw pól. Dla mapy `target` wektory zachowują klucze mapy, a dla
-listy tekstów zachowują kolejność elementów.
+według nazw pól. `target` otrzymuje jeden wektor, a wektory listy
+`constraints` zachowują kolejność elementów.
 
-Aby dodać profil, zdefiniuj cztery typy instrukcji jak w profilu ogólnym.
+Aby dodać profil, zdefiniuj cztery typy instrukcji jak w profilu transportowym.
 W `fields` sekcji `SYSTEM` i `GENERAL_INSTRUCTION` wpisz
 gotowe wartości. W sekcjach operatora pod `fields` wpisz pytanie do
 System One dla każdego pola. Mapa `required` podaje osobną wartość
@@ -76,7 +77,7 @@ starsze profile z `default_text` albo pojedynczym kluczem `system`.
 
 ```sh
 uv run --extra nlp python -m uav_onboard_planner.communication_cli \
-  --scenario scenarios/inspection_edits.yaml --conversation change-order --seed 7
+  --scenario scenarios/cargo_edits.yaml --conversation change-destination --seed 7
 ```
 
 Plik YAML przypisuje identyfikatorom rozmów listy wypowiedzi. Każda tura
@@ -90,8 +91,13 @@ Odpowiedzi JSON trafiają na standardowe wyjście. Rekord na standardowym
 wyjściu błędów zawiera identyfikator rozmowy, ziarno i dostarczone
 wypowiedzi wraz z czasami. Domyślne ziarno to 0.
 
-Opcja `--check-scenario` porównuje odpowiedzi z oczekiwaniami z YAML.
-`expected: true` oznacza oczekiwane pytanie, a mapa pól oznacza oczekiwane
-wartości w szkicu. Numery niezgodnych tur trafiają do `mismatches`;
-niezgodność daje kod wyjścia 1. Interpretator otrzymuje samą wypowiedź
-i kontekst sesji. Przykłady rozmów znajdują się w [scenarios/](../scenarios/).
+Pliki w [scenarios/](../scenarios/) zawierają czasy i wypowiedzi operatora.
+Oczekiwane typy instrukcji i wartości pól sprawdzają testy w katalogach
+`tests/nlp/` i `tests/communication_cli/`.
+
+Test z rzeczywistymi modelami można uruchomić osobno po instalacji
+zależności NLP. Pierwsze uruchomienie może pobrać wagi.
+
+```sh
+UAV_TEST_MODELS=1 uv run --extra nlp pytest -q tests/nlp/test_cargo_models.py
+```

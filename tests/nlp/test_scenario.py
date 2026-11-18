@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from uav_onboard_planner.nlp.scenario import Replay, Turn, load_conversation
-from uav_onboard_planner.nlp.session import Embeddings, Reply, Session
+from uav_onboard_planner.nlp.scenario import Replay, load_conversation
+from uav_onboard_planner.nlp.session import Embeddings, Session
 
 
 def test_replay_waits_for_simulation_time_and_retries_a_failed_turn(
@@ -57,11 +57,3 @@ def test_scenario_rejects_invalid_times(time: str, tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="turn 2"):
         load_conversation(path, "survey", seed=0)
-
-
-def test_scenario_expectations_compare_fields_and_questions() -> None:
-    reply = Reply(instruction="USER_INSTRUCTION", draft={"sites": ("roof A", "roof B")})
-    assert Turn(0, "", {"sites": ("roof A", "roof B")}).matches(reply)
-    assert not Turn(0, "", {"sites": ("roof B", "roof A")}).matches(reply)
-    assert not Turn(0, "", True).matches(reply)
-    assert Turn(0, "", True).matches(Reply(question="Which roof?"))

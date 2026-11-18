@@ -19,17 +19,24 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
     from pathlib import Path
 
     from uav_onboard_planner.communication_cli.__main__ import run_replay, run_terminal
-    from uav_onboard_planner.nlp.config import SystemOneConfig, load_prompt
+    from uav_onboard_planner.nlp.config import (
+        PromptProfile,
+        SystemOneConfig,
+        load_prompt,
+    )
     from uav_onboard_planner.nlp.scenario import load_conversation
     from uav_onboard_planner.nlp.session import Embeddings, Session
 
     settings = SystemOneConfig.load(Path("configs/nlp/systemone/default.ini"))
     profile = load_prompt(settings.prompt_file)
+    assert isinstance(profile, PromptProfile)
+    system = profile.prompts["SYSTEM"]
+    general = profile.prompts["GENERAL_INSTRUCTION"]
     conversation = load_conversation(
-        Path("scenarios/clarifications.yaml"), "roof-selection", 5
+        Path("scenarios/clarifications.yaml"), "missing-destination", 5
     )
     assert conversation == load_conversation(
-        Path("scenarios/clarifications.yaml"), "roof-selection", 5
+        Path("scenarios/clarifications.yaml"), "missing-destination", 5
     )
     assert [turn.time for turn in conversation.turns] == [0.0, 2.0, 6.0, 9.0]
 
@@ -37,16 +44,19 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
         def __init__(self) -> None:
             self.responses = iter(
                 [
-                    {"question": "Który dach?"},
+                    {"activity": "transport"},
                     {
-                        "activity": "inspect",
-                        "target": {"sites": ["dach A"]},
-                        "constraints": ["Zachowaj odległość 3 m."],
+                        "activity": "deliver",
+                        "target": "crate A to point B",
                     },
-                    {"change": "Begin with gutters", "target": {"sites": ["dach A"]}},
                     {
-                        "change": "Begin with the facade",
-                        "target": {"sites": ["dach A"]},
+                        "change": "Use point C",
+                        "target": "crate A to point C",
+                    },
+                    {
+                        "change": "Deliver before 14:00",
+                        "target": "crate A to point C",
+                        "constraints": ["Before 14:00"],
                     },
                 ]
             )
@@ -56,23 +66,19 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
             assert "expected" not in request
             assert request["instruction"] in ("USER_INSTRUCTION", "USER_PROMPT")
             assert request["system"] == {
-                "text": "Support civilian aerial observation, inspection, and cargo transport.",
-                "fields": {
-                    "purpose": "Support civilian aerial observation, inspection, and cargo transport."
-                },
+                "text": system.default_text,
+                "fields": system.default_fields,
             }
             if request["instruction"] == "USER_INSTRUCTION":
                 active = request["active_instruction"]
-                assert active["fields"] == {
-                    "activity": "observe",
-                    "target": {"area": "designated area"},
-                    "constraints": [],
-                }
+                assert "target" not in active["fields"]
+                assert active["fields"] == json.loads(
+                    json.dumps(general.default_fields)
+                )
             else:
                 assert request["active_instruction"]["fields"] == {
-                    "activity": "inspect",
-                    "target": {"sites": ["dach A"]},
-                    "constraints": ["Zachowaj odległość 3 m."],
+                    "activity": "deliver",
+                    "target": "crate A to point B",
                 }
             assert all(
                 set(field) == {"question", "type", "required", "embed"}
@@ -81,7 +87,7 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
                 for field in request["fields"].values()
             )
             assert request["fields"]["constraints"]["required"] is False
-            assert request["fields"]["target"]["type"] == "text_map"
+            assert request["fields"]["target"]["type"] == "text"
             return next(self.responses)
 
     class Encoder:
@@ -96,22 +102,35 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
     metadata = io.StringIO()
     terminal_in = io.StringIO("".join(f"{turn.text}\n" for turn in conversation.turns))
     run_terminal(session(), terminal_in, terminal_out, io.StringIO())
-    assert run_replay(session(), conversation, replay_out, metadata, check=True) == 0
+    run_replay(session(), conversation, replay_out, metadata)
     assert [json.loads(line) for line in terminal_out.getvalue().splitlines()] == [
         json.loads(line) for line in replay_out.getvalue().splitlines()
     ]
+    replies = [json.loads(line) for line in replay_out.getvalue().splitlines()]
+    expected_turns = [
+        ("Deliver crate A.", "CLARIFICATION", None),
+        ("Deliver it to point B.", "USER_INSTRUCTION", "crate A to point B"),
+        ("Deliver it to point C instead.", "USER_PROMPT", "crate A to point C"),
+        ("Deliver it before 14:00.", "USER_PROMPT", "crate A to point C"),
+    ]
     assert [
-        json.loads(line).get("instruction")
-        for line in replay_out.getvalue().splitlines()
-    ] == [None, "USER_INSTRUCTION", "USER_PROMPT", "USER_PROMPT"]
-    first = json.loads(replay_out.getvalue().splitlines()[1])
-    assert first["embeddings"]["fields"]["target"] == {"sites": [[1.0]]}
-    assert first["draft"]["constraints"] == ["Zachowaj odległość 3 m."]
-    assert first["embeddings"]["fields"]["constraints"] == [[1.0]]
+        (
+            turn.text,
+            reply.get(
+                "instruction", "CLARIFICATION" if reply.get("question") else None
+            ),
+            reply.get("draft", {}).get("target"),
+        )
+        for turn, reply in zip(conversation.turns, replies, strict=True)
+    ] == expected_turns
+    assert "target" in replies[0]["question"]
+    last = json.loads(replay_out.getvalue().splitlines()[-1])
+    assert last["embeddings"]["fields"]["target"] == [1.0]
+    assert last["draft"]["constraints"] == ["Before 14:00"]
+    assert last["embeddings"]["fields"]["constraints"] == [[1.0]]
     record = json.loads(metadata.getvalue())
-    assert record["conversation"] == "roof-selection"
+    assert record["conversation"] == "missing-destination"
     assert record["seed"] == 5
-    assert record["mismatches"] == []
     assert [turn["text"] for turn in record["turns"]] == [
         turn.text for turn in conversation.turns
     ]

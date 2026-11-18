@@ -12,7 +12,7 @@ from .config import (
 from .session import Embeddings
 
 _ANSWER_FORMAT = {
-    "text": "Answer with the value only.",
+    "text": "Reply with the answer only, in a short phrase.",
     "text_list": "Write one item per line without bullets.",
     "text_map": (
         "Write one role: value per line. For a list, write role[]: value once per item."
@@ -45,15 +45,18 @@ def _named_answers(lines: list[str]) -> dict[str, str | list[str]]:
 def _extract_fields(context: str, generate: Callable[[str], str]) -> dict[str, object]:
     request = json.loads(context)
     fields = request.pop("fields")
+    if request.get("instruction") == "USER_INSTRUCTION":
+        request.pop("active_instruction", None)
+    message = request.pop("operator_message", "")
     mission = json.dumps(request, ensure_ascii=False)
     result: dict[str, object] = {}
     for name, field in fields.items():
         kind = field["type"]
         answer = generate(
-            f"Mission context and operator message:\n{mission}\n\n"
-            f"{field['question']}\n{_ANSWER_FORMAT[kind]}\n"
+            f"Mission context:\n{mission}\n\nOperator: {message}\n\n"
+            f"Question: {field['question']}\n{_ANSWER_FORMAT[kind]}\n"
             "If the information is absent, write N/A. If the operator must clarify, "
-            "write Clarify: followed by the question in the operator's language."
+            "write Clarify: followed by the question."
         ).strip()
         if not answer or answer.casefold() == "n/a":
             continue

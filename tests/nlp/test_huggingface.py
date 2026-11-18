@@ -56,3 +56,27 @@ def test_extraction_preserves_list_order_and_stops_at_clarification() -> None:
     assert _extract_fields(context, lambda _: next(clarification)) == {
         "question": "Which roof?"
     }
+
+
+def test_first_instruction_extracts_one_target_phrase_from_operator() -> None:
+    prompts = []
+    answers = iter(["crate A to point B"])
+
+    def generate(prompt: str) -> str:
+        prompts.append(prompt)
+        return next(answers)
+
+    context = json.dumps(
+        {
+            "instruction": "USER_INSTRUCTION",
+            "active_instruction": {"text": "Use the designated delivery point"},
+            "operator_message": "Deliver crate A to point B.",
+            "fields": {
+                "target": {"question": "What does the action concern?", "type": "text"},
+            },
+        }
+    )
+    assert _extract_fields(context, generate) == {"target": "crate A to point B"}
+    assert len(prompts) == 1
+    assert "What does the action concern?" in prompts[0]
+    assert "designated delivery point" not in prompts[0]

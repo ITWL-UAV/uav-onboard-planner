@@ -1,0 +1,5 @@
+crate-delivery:
+  - time: 0
+    text:
+      - Transport crate A to point B.
+      - Deliver crate A to point B.

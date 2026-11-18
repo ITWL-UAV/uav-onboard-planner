@@ -83,7 +83,7 @@ Dodatkowe moduły tradycyjnej stacji kontroli nie będą implementowane w ramach
 
 W pierwszym prototypie stacja naziemna ma przyjmować kolejne wypowiedzi w ramach jednej sesji. Moduł rozmowy ma korzystać z dwóch źródeł tekstu:
 
-- **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Zaplanuj inspekcję dachów A i B” może wpisać „Jednak pomiń drugi dach”. CLI pokazuje zaktualizowaną treść polecenia lub pytanie o doprecyzowanie. W demonstracji można również obejrzeć JSON zawierający embeddingi.
+- **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie po angielsku, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Transport crate A to point B” może wpisać „Deliver it to point C instead”. CLI pokazuje zaktualizowaną treść polecenia lub pytanie o doprecyzowanie. W demonstracji można również obejrzeć JSON zawierający embeddingi.
 - **Scenariusz YAML.** Odtwarzacz podaje wypowiedzi do tego samego modułu rozmowy w kolejności i chwilach zdefiniowanych w scenariuszu. Czas liczy się od początku epizodu według zegara symulacji. Odtwarzacz przekazuje oryginalny tekst, dzięki czemu test obejmuje również jego interpretację.
 
 System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Zwraca odpowiedzi tekstowe. Moduł rozmowy sprawdza je względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Jeśli odniesienie jest niejednoznaczne, czat prosi o doprecyzowanie i zachowuje ostatnią zaakceptowaną interpretację. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
@@ -102,7 +102,7 @@ Profil opisuje przeznaczenie niezależnie od modelu językowego. Powiązanie pro
 
 #### Proponowany kontrakt pól w YAML
 
-Poniższy przykład pokazuje gotowe wartości w `fields` dla `SYSTEM` i `GENERAL_INSTRUCTION` oraz pytania do System One w `fields` dla typów od operatora. `GENERAL_INSTRUCTION` używa pól z `USER_INSTRUCTION`. Domyślna wartość określa typ pola o tej nazwie w instrukcjach operatora. Mapa `required` określa wymagalność każdego pola operatora.
+Poniższy przykład pokazuje gotowe wartości w `fields` dla `SYSTEM` i `GENERAL_INSTRUCTION` oraz pytania do System One w `fields` dla typów od operatora. `GENERAL_INSTRUCTION` może zawierać część pól z `USER_INSTRUCTION`. Domyślna wartość określa typ pola o tej nazwie w instrukcjach operatora. Pole bez wartości domyślnej jest tekstowe. Mapa `required` określa wymagalność każdego pola operatora.
 
 ```yaml
 schema_version: 1
@@ -114,7 +114,6 @@ GENERAL_INSTRUCTION:
   source: profile
   fields:
     activity: observe
-    target: {area: designated park}
     constraints: []
 USER_INSTRUCTION:
   source: operator
@@ -130,7 +129,7 @@ USER_PROMPT:
   source: operator
   fields:
     change: What change to the active task did the operator request?
-    target: What is the complete target map after the change?
+    target: What is the target after the requested change?
     constraints: What changes to the constraints did the operator request?
   required:
     change: true
@@ -155,13 +154,13 @@ W katalogu głównym repozytorium planowany jest folder `scenarios/`. Każdy pli
 
 | Planowany plik | Przykładowa zawartość |
 | --- | --- |
-| `scenarios/inspection.yaml` | Polecenia rozpoczęcia inspekcji oraz różne sposoby opisania tego samego zakresu prac. |
-| `scenarios/inspection_edits.yaml` | Rozmowy wieloturowe ze zmianą kolejności, pominięciem elementu i kolejną korektą. |
+| `scenarios/cargo.yaml` | Polecenia transportu ładunku w różnych sformułowaniach. |
+| `scenarios/cargo_edits.yaml` | Rozmowy wieloturowe ze zmianą miejsca dostawy. |
 | `scenarios/clarifications.yaml` | Polecenia niejednoznaczne, oczekiwane pytanie i odpowiedź operatora rozwiązująca niejasność. |
 
 Każda rozmowa ma identyfikator i uporządkowaną listę tur. Tura określa czas w sekundach i tekst lub listę równoważnych wypowiedzi. Kolejne tury jednej rozmowy muszą mieć sens dla każdego jej wariantu. Warianty prowadzące do innej odpowiedzi operatora zapisujemy jako osobne rozmowy. Odtwarzacz ma zapisywać identyfikator rozmowy, ziarno i faktycznie wybrane zdania, aby można było powtórzyć dokładną sekwencję wejść.
 
-Kryterium odbioru jest wspólny test obu wejść. Dla tych samych wypowiedzi i tych samych atrap modeli CLI oraz odtwarzacz mają po każdej turze zwrócić równoważny JSON albo poprosić o to samo doprecyzowanie. Jakość rzeczywistego modelu oceniamy osobno, porównując znaczenie pól z oczekiwanym wynikiem scenariusza. Oczekiwania służą wyłącznie do oceny i pozostają poza kontekstem przekazywanym modelowi.
+Kryterium odbioru jest wspólny test obu wejść. Dla tych samych wypowiedzi i tych samych atrap modeli CLI oraz odtwarzacz mają po każdej turze zwrócić równoważny JSON albo poprosić o to samo doprecyzowanie. Scenariusze przechowują wypowiedzi i czasy. Testy w `tests/` określają oczekiwany typ instrukcji i wartości po każdej turze. Jakość rzeczywistego modelu oceniamy osobno.
 
 ## 4. Dron
 

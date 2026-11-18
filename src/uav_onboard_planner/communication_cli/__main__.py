@@ -32,29 +32,21 @@ def run_replay(
     conversation: Conversation,
     output: TextIO,
     metadata: TextIO,
-    *,
-    check: bool = False,
-) -> int:
+) -> None:
     delivered: list[dict[str, str | float]] = []
-    mismatches: list[int] = []
     try:
         replay = Replay(session, conversation)
         for scheduled in conversation.turns:
             for turn, reply in replay.advance(scheduled.time):
                 delivered.append({"time": turn.time, "text": turn.text})
                 print(reply.to_json(), file=output, flush=True)
-                if check and not turn.matches(reply):
-                    mismatches.append(len(delivered))
     finally:
         record = {
             "conversation": conversation.identifier,
             "seed": conversation.seed,
             "turns": delivered,
         }
-        if check:
-            record["mismatches"] = mismatches
         print(json.dumps(record, ensure_ascii=False), file=metadata, flush=True)
-    return int(bool(mismatches))
 
 
 def main() -> int:
@@ -80,16 +72,13 @@ def main() -> int:
     parser.add_argument(
         "--seed", type=int, help="Seed for selecting utterance variants."
     )
-    parser.add_argument(
-        "--check-scenario", action="store_true", help="Check expected replies."
-    )
     args = parser.parse_args()
     if args.scenario is not None and args.conversation is None:
         parser.error("--scenario requires --conversation")
     if args.scenario is None and (
-        args.conversation is not None or args.seed is not None or args.check_scenario
+        args.conversation is not None or args.seed is not None
     ):
-        parser.error("--conversation, --seed and --check-scenario require --scenario")
+        parser.error("--conversation and --seed require --scenario")
 
     try:
         conversation = (
@@ -109,10 +98,9 @@ def main() -> int:
             print(session.submit(args.text).to_json())
             return 0
         if conversation is not None:
-            return run_replay(
-                session, conversation, sys.stdout, sys.stderr, check=args.check_scenario
-            )
-        run_terminal(session, sys.stdin, sys.stdout, sys.stderr)
+            run_replay(session, conversation, sys.stdout, sys.stderr)
+        else:
+            run_terminal(session, sys.stdin, sys.stdout, sys.stderr)
         return 0
     except KeyboardInterrupt:
         return 130

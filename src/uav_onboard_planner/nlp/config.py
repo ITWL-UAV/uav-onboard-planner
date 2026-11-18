@@ -283,16 +283,11 @@ def _load_compact_profile(
         prompts[kind] = Prompt(None, definitions)
 
     fields = prompts["USER_INSTRUCTION"].fields
-    missing = {
-        name
-        for name, field in fields.items()
-        if field.required and not defaults.get(name)
-    }
     unknown = defaults.keys() - fields.keys()
-    if missing or unknown:
-        invalid = ", ".join(sorted(missing | unknown))
+    if unknown:
+        invalid = ", ".join(sorted(unknown))
         raise ValueError(
-            f"{path}: GENERAL_INSTRUCTION.fields: invalid values or names: {invalid}"
+            f"{path}: GENERAL_INSTRUCTION.fields: unknown fields: {invalid}"
         )
     prompts["GENERAL_INSTRUCTION"] = Prompt(general.default_text, fields, defaults)
     return PromptProfile(version, prompts)
