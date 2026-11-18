@@ -13,6 +13,7 @@ Docelowy podział dokumentacji poniżej jest mapą odnośników. Pliki należy d
 | Plik | Zakres |
 | --- | --- |
 | [README.md](README.md) | Instalacja, uruchomienie, dostępne funkcje i aktualna struktura repozytorium. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Zasady kontrybucji, format komunikatów commitów i tytułów pull requestów oraz sposób ich weryfikacji w CI. |
 | [docs/project.md](docs/project.md) | Cel, zakres, wymagania, ograniczenia i etapy realizacji. |
 | [docs/architecture.md](docs/architecture.md) | Moduły, kierunki zależności, porty, adaptery i przepływ danych. |
 | [docs/mission.md](docs/mission.md) | Hierarchia instrukcji, polecenia GUI, kontrakty komunikacji i cykl życia misji. |
@@ -23,6 +24,8 @@ Docelowy podział dokumentacji poniżej jest mapą odnośników. Pliki należy d
 Przed pracą przeczytaj dokumentację dotyczącą zmienianego obszaru. Jeśli jej brakuje, opieraj się na zatwierdzonych wymaganiach i istniejącym kodzie. Brak dokumentu nie oznacza zgody na samodzielne rozstrzygnięcie otwartej decyzji projektowej.
 
 ## Sposób pracy
+
+- Przed przygotowaniem commita lub utworzeniem, aktualizacją albo scaleniem pull requesta przeczytaj [CONTRIBUTING.md](CONTRIBUTING.md). Sprawdź zgodność nowych komunikatów commitów i tytułu PR z Conventional Commits. Przy squash merge użyj tytułu PR jako tematu commita.
 
 - Przed zmianami znajdź i przeczytaj właściwe `AGENTS.md` oraz `CLAUDE.md`, także w katalogach nadrzędnych i w zmienianym poddrzewie.
 - Najpierw poznaj istniejącą implementację, jej wywołania, kontrakty i testy. Korzystaj z obecnych rozwiązań, zanim dodasz nowe.
