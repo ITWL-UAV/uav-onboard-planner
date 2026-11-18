@@ -130,8 +130,8 @@ def test_low_confidence_requires_a_more_precise_prompt(
     first, precise = "Deliver near point B.", "Deliver to point B."
     interpreter = Interpreter(
         {
-            first: Interpretation({"target": "point B."}, {"target": 0.59}),
-            precise: Interpretation({"target": "point B."}, {"target": 0.6}),
+            first: Interpretation({"target": "point B."}, {"target": 0.7}),
+            precise: Interpretation({"target": "point B."}, {"target": 0.75}),
         }
     )
     encoder = Encoder()
@@ -139,7 +139,7 @@ def test_low_confidence_requires_a_more_precise_prompt(
 
     reply = session.submit(first)
     assert reply.draft == {"target": "point B."}
-    assert reply.confidence == {"target": 0.59}
+    assert reply.confidence == {"target": 0.7}
     assert reply.low_confidence == ("target",)
     assert reply.needs_clarification
     assert session.user_instruction is None

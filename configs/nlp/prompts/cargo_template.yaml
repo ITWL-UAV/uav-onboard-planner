@@ -1,6 +1,7 @@
 # template serves as pure example. should not be used for testing
 # 
 schema_version: 1
+min_confidence: 0.6
 
 SYSTEM:
   source: profile
@@ -11,7 +12,7 @@ GENERAL_INSTRUCTION:
   source: profile
   fields:
     activity: Cargo delivery to designated point.
-    constraints: [slow flight, high care for fragile cargo]
+    constraints: slow flight, high care for fragile cargo
 
 USER_INSTRUCTION:
   source: operator
@@ -28,7 +29,7 @@ USER_PROMPT:
   source: operator
   fields:
     change: What change did the operator request?
-    target: What is the target after the requested change?
+    target: What is the flight destination after the requested change?
     constraints: What changes to the constraints did the operator request?
   required:
     change: true

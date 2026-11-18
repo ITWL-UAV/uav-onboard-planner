@@ -13,12 +13,11 @@ from ..mission.instructions import (
     Mission,
     TextValue,
 )
-from .config import PromptProfile, parse_fields
+from .config import DEFAULT_MIN_CONFIDENCE, PromptProfile, parse_fields
 
 type Vector = tuple[float, ...]
 type VectorValue = Vector | tuple[Vector, ...]
 type FieldVectors = VectorValue | dict[str, VectorValue]
-MIN_CONFIDENCE = 0.6
 
 
 def _texts(value: FieldValue) -> Iterator[str]:
@@ -73,13 +72,14 @@ class Reply:
     field_names: tuple[str, ...] = ()
     missing_required: tuple[str, ...] = ()
     confidence: dict[str, float] | None = None
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE
 
     @property
     def low_confidence(self) -> tuple[str, ...]:
         return tuple(
             name
             for name, score in (self.confidence or {}).items()
-            if score < MIN_CONFIDENCE
+            if score < self.min_confidence
         )
 
     @property
@@ -245,7 +245,7 @@ class Session:
         sites: tuple[str, ...] = tuple(site.strip() for site in proposal["sites"])
         if len(set(sites)) != len(sites):
             raise ValueError("szkic zawiera powtórzone miejsca")
-        if any(score < MIN_CONFIDENCE for score in (confidence or {}).values()):
+        if any(score < DEFAULT_MIN_CONFIDENCE for score in (confidence or {}).values()):
             return Reply(instruction, sites, confidence=confidence)
         embeddings = self._encode(sites)
         if self._original_instruction is None:
@@ -303,7 +303,7 @@ class Session:
             if field.required and name not in draft
         )
         if missing or any(
-            score < MIN_CONFIDENCE for score in (confidence or {}).values()
+            score < profile.min_confidence for score in (confidence or {}).values()
         ):
             return Reply(
                 instruction=kind,
@@ -312,6 +312,7 @@ class Session:
                 field_names=tuple(prompt.fields),
                 missing_required=missing,
                 confidence=confidence,
+                min_confidence=profile.min_confidence,
             )
 
         texts = tuple(
@@ -341,4 +342,5 @@ class Session:
             vectors_by_field=vectors_by_field,
             field_names=tuple(prompt.fields),
             confidence=confidence,
+            min_confidence=profile.min_confidence,
         )

@@ -69,8 +69,10 @@ i jego wektoryzację.
 
 `confidence` podaje dla każdego pola prawdopodobieństwo wybranej opcji
 względem pozostałych kandydatów, w tym opcji braku odpowiedzi. Wynik Qwen
-w tym adapterze nie jest skalibrowaną miarą trafności. Jeśli dowolne pole
-ma wynik poniżej `0.6`, CLI pokazuje je w `low_confidence`, zachowuje
+w tym adapterze nie jest skalibrowaną miarą trafności. Klucz `min_confidence`
+na najwyższym poziomie profilu YAML ustala próg od 0 do 1. Domyślna wartość
+to `0.6`. Jeśli dowolne pole ma wynik poniżej progu, CLI pokazuje je
+w `low_confidence`, zachowuje
 dotychczasową instrukcję i prosi o precyzyjniejszą wypowiedź nad etykietą wejścia.
 
 W CLI `embeddings` podaje identyfikator modelu, rewizję i wymiar.

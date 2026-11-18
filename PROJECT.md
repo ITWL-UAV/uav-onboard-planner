@@ -86,7 +86,7 @@ W pierwszym prototypie stacja naziemna ma przyjmować kolejne wypowiedzi w ramac
 - **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie po angielsku, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Transport crate A to point B” może wpisać „Deliver it to point C instead”. CLI pokazuje pełny szkic JSON, w tym brakujące pola i metadane embeddingów przyjętych poleceń.
 - **Scenariusz YAML.** Odtwarzacz podaje wypowiedzi do tego samego modułu rozmowy w kolejności i chwilach zdefiniowanych w scenariuszu. Czas liczy się od początku epizodu według zegara symulacji. Odtwarzacz przekazuje oryginalny tekst, dzięki czemu test obejmuje również jego interpretację.
 
-System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Wybiera dosłowny fragment wypowiedzi albo brak odpowiedzi. Moduł rozmowy sprawdza wynik względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Brakujące wartości w szkicu otrzymują `null`. Brak wymaganego pola lub wynik poniżej `0.6` pozostawia ostatnią zaakceptowaną instrukcję i wymaga precyzyjniejszej wypowiedzi. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
+System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Wybiera dosłowny fragment wypowiedzi albo brak odpowiedzi. Moduł rozmowy sprawdza wynik względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Brakujące wartości w szkicu otrzymują `null`. Brak wymaganego pola lub wynik poniżej progu `min_confidence` z profilu pozostawia ostatnią zaakceptowaną instrukcję i wymaga precyzyjniejszej wypowiedzi. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
 
 Na potrzeby prototypu wybieramy wariant z §3.3, w którym oddzielny enkoder oblicza embeddingi wskazanych pól tekstowych po walidacji JSON. Wynikowy JSON zachowuje jawne wartości pól i przypisuje wektor do konkretnego pola wraz z identyfikatorem i wersją enkodera oraz wymiarem wektora. Liczby, jednostki i identyfikatory pozostają jawne także po edycji. Docelowy format transmisji pozostaje otwarty.
 
@@ -106,6 +106,7 @@ Poniższy przykład pokazuje gotowe wartości w `fields` dla `SYSTEM` i `GENERAL
 
 ```yaml
 schema_version: 1
+min_confidence: 0.6
 SYSTEM:
   source: profile
   fields:
