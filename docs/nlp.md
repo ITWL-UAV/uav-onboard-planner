@@ -55,20 +55,20 @@ modelowi pierwotne polecenie, zaakceptowane zmiany i oczekujące doprecyzowanie.
 Pytanie o doprecyzowanie pozostawia zaakceptowany stan i nie wywołuje enkodera.
 
 Szkic zawiera `schema_version`, `instruction` oraz jawne pola w `draft`.
-Pole `embeddings` pojawia się, jeśli profil wyznacza obecne pola do wektoryzacji.
+W szablonie inspekcji wszystkie wyodrębnione wartości są wektoryzowane.
 Zawiera identyfikator modelu, rewizję, wymiar i wektory według nazw pól.
 Pole tekstowe dostaje jeden wektor. Dla listy tekstów, np. `draft.sites`,
 `embeddings.fields.sites` zachowuje kolejność elementów. W profilu inspekcji
 nakładane ograniczenia zachowują zapisane liczby i jednostki w jawnej treści.
 
 Aby dodać profil, zdefiniuj cztery typy instrukcji jak w przykładzie
-inspekcji. Wpisz gotowe wartości w `GENERAL_INSTRUCTION.default_fields`.
-Są sprawdzane według tego samego schematu co wynik `USER_INSTRUCTION`.
-Sekcje operatora mają `default_text: null` i własny blok `fields`.
-Każde pole w tym bloku, w tym `constraints`, określa pytanie do System One
-(`question`), typ `text` lub `text_list`, wymagalność (`required`)
-i wektoryzację (`embed`). Starsze profile z opisami `meaning` lub
-pojedynczym kluczem `system` można nadal wczytać.
+inspekcji. W `fields` sekcji `SYSTEM` i `GENERAL_INSTRUCTION` wpisz
+gotowe wartości. W sekcjach operatora pod `fields` wpisz pytanie do
+System One dla każdego pola. Mapa `required` podaje osobną wartość
+`true` lub `false` dla każdego z nich. Lista w domyślnych wartościach
+`GENERAL_INSTRUCTION` określa pole listowe także w obu instrukcjach
+operatora. Pozostałe pola operatora są tekstowe. Można nadal wczytać
+starsze profile z `default_text` albo pojedynczym kluczem `system`.
 
 ## Odtwarzanie scenariusza
 

@@ -54,7 +54,9 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
             assert request["instruction"] in ("USER_INSTRUCTION", "USER_PROMPT")
             assert request["system"] == {
                 "text": "Serve as a civilian platform for aerial inspection of building exteriors.",
-                "fields": {},
+                "fields": {
+                    "purpose": "Serve as a civilian platform for aerial inspection of building exteriors."
+                },
             }
             if request["instruction"] == "USER_INSTRUCTION":
                 active = request["active_instruction"]
@@ -62,6 +64,7 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
                 assert active["fields"] == {
                     "objective": active["text"],
                     "sites": ["designated area"],
+                    "constraints": [],
                 }
                 assert (
                     "specific exterior inspection task or outcome"
@@ -76,8 +79,11 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
             assert all(
                 set(field) == {"question", "type", "required", "embed"}
                 and field["question"].endswith("?")
+                and field["embed"] is True
                 for field in request["fields"].values()
             )
+            assert request["fields"]["constraints"]["required"] is False
+            assert request["fields"]["sites"]["type"] == "text_list"
             return next(self.responses)
 
     class Encoder:

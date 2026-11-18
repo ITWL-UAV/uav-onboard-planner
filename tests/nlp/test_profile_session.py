@@ -18,7 +18,20 @@ def test_general_defaults_must_match_the_user_instruction_schema(
         ),
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match=r"GENERAL_INSTRUCTION\.default_fields.*sites"):
+    with pytest.raises(ValueError, match=r"GENERAL_INSTRUCTION\.fields.*sites"):
+        load_prompt(path)
+
+
+def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
+    template = Path("configs/nlp/prompts/inspection_template.yaml")
+    path = tmp_path / template.name
+    path.write_text(
+        template.read_text(encoding="utf-8").replace(
+            "constraints: false", "constraints: 'false'", 1
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"USER_INSTRUCTION\.required"):
         load_prompt(path)
 
 

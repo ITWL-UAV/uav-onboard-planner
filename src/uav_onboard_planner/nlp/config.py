@@ -4,7 +4,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal, Self
 
-from ..mission.instructions import FieldValue, InstructionType
+from ..mission.instructions import FieldValue, InstructionType, OperatorInstruction
 
 
 @dataclass(frozen=True)
@@ -166,6 +166,101 @@ def parse_fields(
     return values
 
 
+def _profile_section(
+    section: object, keys: set[str], source: str, label: str
+) -> dict[str, object]:
+    if (
+        not isinstance(section, dict)
+        or set(section) != keys
+        or section["source"] != source
+    ):
+        raise ValueError(f"{label}: invalid section")
+    return section
+
+
+def _field_map(data: object, label: str) -> dict[str, object]:
+    if (
+        not isinstance(data, dict)
+        or not data
+        or any(
+            not isinstance(name, str) or not name.strip() or name == "question"
+            for name in data
+        )
+    ):
+        raise ValueError(f"{label}: expected nonempty named fields")
+    return data
+
+
+def _load_compact_profile(
+    data: Mapping[str, object], version: int, path: Path
+) -> PromptProfile:
+    prompts: dict[InstructionType, Prompt] = {}
+    for kind in ("SYSTEM", "GENERAL_INSTRUCTION"):
+        label = f"{path}: {kind}.fields"
+        section = _profile_section(data[kind], {"source", "fields"}, "profile", label)
+        defaults: dict[str, FieldValue] = {}
+        for name, value in _field_map(section["fields"], label).items():
+            if isinstance(value, str) and value.strip():
+                defaults[name] = value
+            elif isinstance(value, list) and all(
+                isinstance(item, str) and item.strip() for item in value
+            ):
+                defaults[name] = tuple(value)
+            else:
+                raise ValueError(f"{label}: invalid value for {name}")
+        text = next(
+            (value for value in defaults.values() if isinstance(value, str)), ""
+        )
+        prompts[kind] = Prompt(text, {}, defaults)
+
+    general = prompts["GENERAL_INSTRUCTION"]
+    assert general.default_fields is not None
+    defaults = general.default_fields
+    operator_kinds: tuple[OperatorInstruction, ...] = (
+        "USER_INSTRUCTION",
+        "USER_PROMPT",
+    )
+    for kind in operator_kinds:
+        label = f"{path}: {kind}"
+        section = _profile_section(
+            data[kind], {"source", "fields", "required"}, "operator", label
+        )
+        questions = _field_map(section["fields"], f"{label}.fields")
+        required = section["required"]
+        if (
+            not isinstance(required, dict)
+            or required.keys() != questions.keys()
+            or any(type(value) is not bool for value in required.values())
+        ):
+            raise ValueError(f"{label}.required: expected a boolean for each field")
+        definitions: dict[str, Field] = {}
+        for name, question in questions.items():
+            if not isinstance(question, str) or not question.strip():
+                raise ValueError(f"{label}.fields: expected a question for {name}")
+            definitions[name] = Field(
+                question,
+                "text_list" if isinstance(defaults.get(name), tuple) else "text",
+                required[name],
+                True,
+            )
+        prompts[kind] = Prompt(None, definitions)
+
+    fields = prompts["USER_INSTRUCTION"].fields
+    missing = {
+        name
+        for name, field in fields.items()
+        if field.required and not defaults.get(name)
+    }
+    unknown = defaults.keys() - fields.keys()
+    if missing or unknown:
+        invalid = ", ".join(sorted(missing | unknown))
+        raise ValueError(
+            f"{path}: GENERAL_INSTRUCTION.fields: invalid values or names: {invalid}"
+        )
+    prompts["GENERAL_INSTRUCTION"] = Prompt(general.default_text, fields, defaults)
+    return PromptProfile(version, prompts)
+
+
 def load_prompt(path: Path) -> PromptProfile | str:
     data = _load_prompt_yaml(path)
     if isinstance(data, dict) and set(data) == {"system"}:
@@ -186,6 +281,9 @@ def load_prompt(path: Path) -> PromptProfile | str:
         raise ValueError(
             f"{path}: expected schema_version 1 and four instruction types"
         )
+    system = data["SYSTEM"]
+    if isinstance(system, dict) and "default_text" not in system:
+        return _load_compact_profile(data, data["schema_version"], path)
 
     section_keys = {"source", "default_text"}
     with_fields = section_keys | {"fields"}

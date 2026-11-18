@@ -102,37 +102,43 @@ Profil opisuje przeznaczenie niezależnie od modelu językowego. Powiązanie pro
 
 #### Proponowany kontrakt pól w YAML
 
-Poniższy przykład pokazuje gotowe dane dla `SYSTEM` i `GENERAL_INSTRUCTION` oraz pola do ekstrakcji dla typów od operatora. `GENERAL_INSTRUCTION.default_fields` korzysta ze schematu `USER_INSTRUCTION.fields`. Każde pole ekstrakcji podaje pytanie do System One, typ, wymagalność i decyzję o wektoryzacji. Typ `text_list` oznacza uporządkowaną listę tekstów.
+Poniższy przykład pokazuje gotowe wartości w `fields` dla `SYSTEM` i `GENERAL_INSTRUCTION` oraz pytania do System One w `fields` dla typów od operatora. `GENERAL_INSTRUCTION` używa pól z `USER_INSTRUCTION`. Domyślna lista wskazuje, że pole o tej nazwie oczekuje uporządkowanej listy tekstów. Pozostałe pola operatora oczekują pojedynczego tekstu. Mapa `required` określa wymagalność każdego pola operatora.
 
 ```yaml
 schema_version: 1
 SYSTEM:
   source: profile
-  default_text: "Document the condition of public green spaces."
+  fields:
+    purpose: Document the condition of public green spaces.
 GENERAL_INSTRUCTION:
   source: profile
-  default_text: &general_objective "Prepare an overview of the designated park."
-  default_fields:
-    objective: *general_objective
+  fields:
+    objective: Prepare an overview of the designated park.
     subjects: [designated park]
     constraints: []
 USER_INSTRUCTION:
   source: operator
-  default_text: null
   fields:
-    objective: {question: "What specific task or outcome did the operator request for this mission?", type: text, required: true, embed: true}
-    subjects: {question: "Which subjects or areas did the operator name?", type: text_list, required: false, embed: true}
-    constraints: {question: "What explicit conditions did the operator specify?", type: text_list, required: false, embed: true}
+    objective: What specific task or outcome did the operator request for this mission?
+    subjects: Which subjects or areas did the operator name?
+    constraints: What explicit conditions did the operator specify?
+  required:
+    objective: true
+    subjects: false
+    constraints: false
 USER_PROMPT:
   source: operator
-  default_text: null
   fields:
-    change: {question: "What change to the active task did the operator request?", type: text, required: true, embed: true}
-    applies_to: {question: "What part of the task does the change affect?", type: text, required: false, embed: true}
-    constraints: {question: "What changes to the constraints did the operator request?", type: text_list, required: false, embed: true}
+    change: What change to the active task did the operator request?
+    applies_to: What part of the task does the change affect?
+    constraints: What changes to the constraints did the operator request?
+  required:
+    change: true
+    applies_to: false
+    constraints: false
 ```
 
-Stacja przyjmuje `SYSTEM` i `GENERAL_INSTRUCTION` jako gotowy kontekst. Dla wypowiedzi operatora stacja wyznacza typ z kontekstu sesji, a System One otrzymuje właściwy schemat i wypełnia wymienione pola. Brak opcjonalnej wartości oznacza pominięcie pola. Brak wymaganej wartości lub niejednoznaczne odniesienie wymaga wyjaśnienia. NLP sprawdza klucze i typy przed uruchomieniem enkodera. Dla każdej obecnej wartości z `embed: true` enkoder wylicza osobny wektor, a w przypadku listy po jednym wektorze na element. Wynik zawiera wersję schematu, typ promptu, jawne pola i embeddingi powiązane ze ścieżką pola oraz indeksem elementu listy. Typ, wersje i indeksy nadaje aplikacja.
+Stacja przyjmuje `SYSTEM` i `GENERAL_INSTRUCTION` jako gotowy kontekst. Dla wypowiedzi operatora stacja wyznacza typ z kontekstu sesji, a System One otrzymuje właściwy schemat i wypełnia wymienione pola. Brak opcjonalnej wartości oznacza pominięcie pola. Brak wymaganej wartości lub niejednoznaczne odniesienie wymaga wyjaśnienia. NLP sprawdza klucze i typy przed uruchomieniem enkodera. Enkoder oblicza wektor dla każdej wyodrębnionej wartości tekstowej, a w przypadku listy po jednym na element. Wynik zawiera wersję schematu, typ promptu, jawne pola i embeddingi powiązane ze ścieżką pola oraz indeksem elementu listy. Typ, wersje i indeksy nadaje aplikacja.
 
 #### Etapy implementacji na stacji
 

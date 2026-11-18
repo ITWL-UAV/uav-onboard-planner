@@ -98,14 +98,17 @@ class Session:
         self.mission: Mission | None = None
         self.initial: tuple[Reply, ...] = ()
         if profile is not None:
-            system_text = profile.prompts["SYSTEM"].default_text
+            system = profile.prompts["SYSTEM"]
             general = profile.prompts["GENERAL_INSTRUCTION"]
-            general_text = general.default_text
-            assert system_text is not None and general_text is not None
+            assert system.default_text is not None and general.default_text is not None
             self.mission = Mission(
-                Instruction(system_text, MappingProxyType({})),
                 Instruction(
-                    general_text, MappingProxyType(dict(general.default_fields or {}))
+                    system.default_text,
+                    MappingProxyType(dict(system.default_fields or {})),
+                ),
+                Instruction(
+                    general.default_text,
+                    MappingProxyType(dict(general.default_fields or {})),
                 ),
             )
 
