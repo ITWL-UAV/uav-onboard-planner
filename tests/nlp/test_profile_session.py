@@ -44,12 +44,13 @@ USER_PROMPT:
         [
             {"purpose": "Document public parks"},
             {"objective": "Survey", "subjects": ["trees"]},
-            {"objective": "Map paths"},
+            {"objective": "Map paths", "subjects": []},
             {"change": "Start at entrance"},
             {"objective": "New task"},
             {"question": "Które alejki?"},
             {"change": "Map all paths", "applies_to": "paths"},
             {"change": "Stop after the main path"},
+            {},
         ]
     )
     batches = []
@@ -101,6 +102,7 @@ USER_PROMPT:
 
     with pytest.raises(ValueError, match="nieprawidłowe wektory"):
         session.submit("Zmiana")
+    assert session.submit("Jeszcze inaczej").question is not None
     assert len(session.mission.changes) == 2
     assert batches == [
         ("Survey", "trees"),

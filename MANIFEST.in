@@ -1,3 +1,4 @@
 recursive-include configs *.yaml *.ini
+recursive-include scenarios *.yaml
 recursive-include docs *.md
 recursive-include tests *.py

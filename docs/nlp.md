@@ -63,3 +63,27 @@ Aby dodać profil, zdefiniuj cztery sekcje jak w przykładzie inspekcji. W
 i wektoryzację. Sekcje operatora mają `default_text: null`; pozostałe
 zawierają tekst domyślny. Istniejące pliki z pojedynczym kluczem `system`
 nadal działają z wcześniejszym formatem szkicu listy miejsc.
+
+## Odtwarzanie scenariusza
+
+```sh
+uv run --extra nlp python -m uav_onboard_planner.communication_cli \
+  --scenario scenarios/inspection_edits.yaml --conversation change-order --seed 7
+```
+
+Plik YAML przypisuje identyfikatorom rozmów listy wypowiedzi. Każda tura
+ma `time` w sekundach od początku epizodu i `text` z jedną wypowiedzią
+lub listą równoważnych wariantów. Czasy są uporządkowane niemalejąco.
+Wypowiedzi o tym samym czasie są dostarczane w kolejności z pliku.
+CLI odtwarza kolejne chwile bez czekania. Kod prowadzący epizod może
+przekazywać bieżący czas symulacji do `Replay.advance(elapsed)`.
+
+Odpowiedzi JSON trafiają na standardowe wyjście. Rekord na standardowym
+wyjściu błędów zawiera identyfikator rozmowy, ziarno i dostarczone
+wypowiedzi wraz z czasami. Domyślne ziarno to 0.
+
+Opcja `--check-scenario` porównuje odpowiedzi z oczekiwaniami z YAML.
+`expected: true` oznacza oczekiwane pytanie, a mapa pól oznacza oczekiwane
+wartości w szkicu. Numery niezgodnych tur trafiają do `mismatches`;
+niezgodność daje kod wyjścia 1. Interpretator otrzymuje samą wypowiedź
+i kontekst sesji. Przykłady rozmów znajdują się w [scenarios/](../scenarios/).

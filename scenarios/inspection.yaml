@@ -1,0 +1,12 @@
+roof-survey:
+  - time: 0
+    text:
+      - Zaplanuj inspekcję dachu A.
+      - Obejrzyj dach A i udokumentuj jego stan.
+    expected: {sites: [dach A]}
+facade-survey:
+  - time: 0
+    text:
+      - Sprawdź elewację budynku B i rynny budynku B w tej kolejności.
+      - Najpierw obejrzyj elewację budynku B, a później rynny budynku B.
+    expected: {sites: [elewacja budynku B, rynny budynku B]}
