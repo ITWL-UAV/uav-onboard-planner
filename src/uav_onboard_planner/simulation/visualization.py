@@ -1,11 +1,13 @@
 import csv
 from pathlib import Path
+from typing import cast
 
 
 def plot_trajectories(output: Path, show_animation: bool) -> None:
     import matplotlib.pyplot as plt
     import numpy as np
     from matplotlib.animation import FuncAnimation
+    from mpl_toolkits.mplot3d.art3d import Line3D  # type: ignore[import-untyped]
 
     trajectories: dict[str, list[list[float]]] = {}
     with (output / "trajectory.csv").open(encoding="utf-8", newline="") as stream:
@@ -29,7 +31,8 @@ def plot_trajectories(output: Path, show_animation: bool) -> None:
     figure.savefig(output / "trajectory.png", dpi=150)
     if show_animation:
         lines = {
-            name: axes.plot([], [], [], marker="o", markersize=3)[0] for name in arrays
+            name: cast(Line3D, axes.plot([], [], [], marker="o", markersize=3)[0])
+            for name in arrays
         }
         times = next(iter(arrays.values()))[:, 0]
 

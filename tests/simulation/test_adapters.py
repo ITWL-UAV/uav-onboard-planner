@@ -13,7 +13,8 @@ def test_quadrotor_reaches_waypoint_and_hovers() -> None:
     autopilot = RotorPyAutopilot("hummingbird", (0, 0, 10), 2, 0)
     flight = Flight(autopilot, Mission(((5, 0, 10),), 0.3))
     for _ in range(1500):
-        state = flight.step(0.01)
+        flight.step(0.01)
+    state = autopilot.state
     assert flight.status == "completed"
     assert dist(state.position, (5, 0, 10)) < 0.6
     assert dist(state.velocity, (0, 0, 0)) < 0.1
@@ -24,7 +25,8 @@ def test_fixed_wing_reaches_waypoints_and_keeps_flying() -> None:
     autopilot = JSBSimAutopilot("c172x", (0, 0, 300), 50, 0, 42)
     flight = Flight(autopilot, Mission(((0, 500, 300), (500, 1200, 300)), 60))
     for _ in range(4000):
-        state = flight.step(0.01)
+        flight.step(0.01)
+    state = autopilot.state
     assert flight.status == "completed"
     assert state.position[0] > 400
     assert state.position[1] > 1000
