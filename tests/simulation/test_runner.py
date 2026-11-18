@@ -12,7 +12,7 @@ from uav_onboard_planner.simulation.runner import create_episode, run
 @pytest.mark.integration
 def test_run_records_both_aircraft_and_configuration(tmp_path: Path) -> None:
     config = replace(
-        load_config(Path("configs/simulation/default.yaml")), duration=0.05
+        load_config(Path("scenarios/simulation/default.yaml")), duration=0.05
     )
     output = tmp_path / "run"
     statuses = run(config, output)
@@ -41,7 +41,7 @@ def test_final_sample_is_not_duplicated_by_rounding(
     tmp_path: Path, duration: float
 ) -> None:
     config = replace(
-        load_config(Path("configs/simulation/default.yaml")),
+        load_config(Path("scenarios/simulation/default.yaml")),
         duration=duration,
         sample_interval=duration,
     )
@@ -55,7 +55,7 @@ def test_final_sample_is_not_duplicated_by_rounding(
 
 @pytest.mark.integration
 def test_scheduled_route_matches_recording(tmp_path: Path) -> None:
-    config = load_config(Path("configs/simulation/route_change.yaml"))
+    config = load_config(Path("scenarios/simulation/route_change.yaml"))
     output = tmp_path / "run"
     assert run(config, output) == {"survey": "completed"}
     metadata = json.loads((output / "run.json").read_text())
@@ -101,7 +101,7 @@ def test_scheduled_route_matches_recording(tmp_path: Path) -> None:
 
 @pytest.mark.integration
 def test_cancellation_scenario_records_the_remaining_flight(tmp_path: Path) -> None:
-    config = load_config(Path("configs/simulation/mission_cancellation.yaml"))
+    config = load_config(Path("scenarios/simulation/mission_cancellation.yaml"))
     output = tmp_path / "run"
     assert run(config, output) == {"survey": "cancelled", "traffic": "active"}
     with (output / "trajectory.csv").open() as stream:

@@ -7,7 +7,7 @@ from uav_onboard_planner.simulation.config import load_config
 
 
 def test_example_contains_both_aircraft_types() -> None:
-    config = load_config(Path("configs/simulation/default.yaml"))
+    config = load_config(Path("scenarios/simulation/default.yaml"))
     assert {drone.backend for drone in config.drones} == {"rotorpy", "jsbsim"}
     assert len({drone.name for drone in config.drones}) == len(config.drones)
 
@@ -35,7 +35,7 @@ def test_malformed_configuration_is_rejected(tmp_path: Path, content: str) -> No
     ],
 )
 def test_invalid_run_parameters(tmp_path: Path, field: str, value) -> None:
-    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+    data = yaml.safe_load(Path("scenarios/simulation/default.yaml").read_text())
     data[field] = value
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(data))
@@ -75,7 +75,7 @@ def test_invalid_run_parameters(tmp_path: Path, field: str, value) -> None:
     ],
 )
 def test_invalid_aircraft_parameters(tmp_path: Path, field: str, value) -> None:
-    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+    data = yaml.safe_load(Path("scenarios/simulation/default.yaml").read_text())
     data["drones"][0][field] = value
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(data))
@@ -84,7 +84,7 @@ def test_invalid_aircraft_parameters(tmp_path: Path, field: str, value) -> None:
 
 
 def test_duplicate_names_are_rejected(tmp_path: Path) -> None:
-    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+    data = yaml.safe_load(Path("scenarios/simulation/default.yaml").read_text())
     data["drones"][1]["name"] = data["drones"][0]["name"]
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(data))
@@ -97,7 +97,7 @@ def test_altimeter_profile_is_resolved_relative_to_the_scenario(tmp_path: Path) 
     profiles.mkdir()
     profile = profiles / "altimeter.yaml"
     profile.write_text("noise_std_m: 0.3\ndelay_s: 0.05\n")
-    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+    data = yaml.safe_load(Path("scenarios/simulation/default.yaml").read_text())
     data["drones"][0]["altimeter"] = "sensors/altimeter.yaml"
     scenario = tmp_path / "scenario.yaml"
     scenario.write_text(yaml.safe_dump(data))
@@ -128,7 +128,7 @@ def test_altimeter_profile_is_resolved_relative_to_the_scenario(tmp_path: Path) 
 def test_invalid_mission_cancellation(
     tmp_path: Path, cancellation, message: str
 ) -> None:
-    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+    data = yaml.safe_load(Path("scenarios/simulation/default.yaml").read_text())
     data["mission_cancellations"] = [cancellation]
     data["route_changes"] = [
         {"time": 1, "drone": "survey", "arrival_radius": 1, "waypoints": [[1, 0, 10]]}

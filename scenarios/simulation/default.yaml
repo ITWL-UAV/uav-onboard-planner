@@ -1,4 +1,4 @@
-# Local ENU coordinates: east, north, up [m]. All aircraft start in flight.
+# Local ENU coordinates in metres (east, north, up). All aircraft start in flight.
 time_step: 0.01
 duration: 60.0
 sample_interval: 0.2
