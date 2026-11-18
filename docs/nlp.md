@@ -18,8 +18,10 @@ uv run --extra nlp python -m uav_onboard_planner.communication_cli
 ```
 
 Wpisuj polecenia po angielsku, np. „Transport crate A to point B”, a potem
-„Deliver it to point C instead”. Terminal prosi o tekst przez `User prompt:`
-i pokazuje JSON z wcięciami. Wejście z potoku, `--text` i odtwarzanie
+„Deliver it to point C instead”. Terminal pokazuje `USER_INSTRUCTION`
+nad wejściem aż do przyjęcia pierwszej instrukcji. Kolejne wypowiedzi
+wpisuje się pod `USER_PROMPT`. Wynik JSON jest wyświetlany z wcięciami.
+Wejście z potoku, `--text` i odtwarzanie
 scenariusza zwracają jeden obiekt JSON na wiersz. Zakończ sesję przez Ctrl+D.
 
 Pierwsze uruchomienie pobiera wagi i pliki tokenizerów do `weights/`.
@@ -69,7 +71,7 @@ i jego wektoryzację.
 względem pozostałych kandydatów, w tym opcji braku odpowiedzi. Wynik Qwen
 w tym adapterze nie jest skalibrowaną miarą trafności. Jeśli dowolne pole
 ma wynik poniżej `0.6`, CLI pokazuje je w `low_confidence`, zachowuje
-dotychczasową instrukcję i wyświetla `More precise user prompt:`.
+dotychczasową instrukcję i prosi o precyzyjniejszą wypowiedź nad etykietą wejścia.
 
 W CLI `embeddings` podaje identyfikator modelu, rewizję i wymiar.
 Kod korzystający z sesji ma też dostęp do wektorów według nazw pól.

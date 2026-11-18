@@ -102,19 +102,27 @@ def test_interactive_cli_prompts_and_formats_json() -> None:
 
     class Interpreter:
         def interpret(self, context: str) -> object:
-            return {}
+            message = json.loads(context)["operator_message"]
+            return {"target": "point B"} if message == "Deliver to point B." else {}
 
     class Encoder:
         def encode(self, texts: tuple[str, ...]) -> Embeddings:
-            raise AssertionError("incomplete drafts should not be encoded")
+            assert texts == ("point B",)
+            return Embeddings("encoder", "v1", ((1.0,),))
 
     profile = load_prompt(TESTS / "fixtures" / "cargo_profile.yaml")
     assert isinstance(profile, PromptProfile)
     output, prompt = io.StringIO(), io.StringIO()
     run_terminal(
-        Session(Interpreter(), Encoder(), profile), Terminal("test\n"), output, prompt
+        Session(Interpreter(), Encoder(), profile),
+        Terminal("Deliver.\nDeliver to point B.\n"),
+        output,
+        prompt,
     )
 
-    assert prompt.getvalue().startswith("User prompt: ")
+    assert prompt.getvalue() == (
+        "USER_INSTRUCTION\nEnter a more precise prompt.\nUSER_INSTRUCTION\nUSER_PROMPT\n"
+    )
     assert output.getvalue().startswith('{\n  "schema_version"')
-    assert json.loads(output.getvalue())["draft"]["target"] is None
+    incomplete, _ = json.JSONDecoder().raw_decode(output.getvalue())
+    assert incomplete["draft"]["target"] is None
