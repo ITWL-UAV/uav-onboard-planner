@@ -1,3 +1,5 @@
+# template serves as pure example. should not be used for testing
+# 
 schema_version: 1
 
 SYSTEM:

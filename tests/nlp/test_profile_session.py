@@ -10,7 +10,7 @@ from uav_onboard_planner.nlp.session import Embeddings, Session
 def test_general_defaults_reject_unknown_fields(
     tmp_path: Path,
 ) -> None:
-    template = Path("configs/nlp/prompts/cargo_template.yaml")
+    template = Path("tests/fixtures/cargo_profile.yaml")
     path = tmp_path / template.name
     path.write_text(
         template.read_text(encoding="utf-8").replace(
@@ -24,7 +24,7 @@ def test_general_defaults_reject_unknown_fields(
 
 
 def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
-    template = Path("configs/nlp/prompts/cargo_template.yaml")
+    template = Path("tests/fixtures/cargo_profile.yaml")
     path = tmp_path / template.name
     path.write_text(
         template.read_text(encoding="utf-8").replace(
@@ -37,7 +37,7 @@ def test_operator_requires_a_boolean_per_field(tmp_path: Path) -> None:
 
 
 def test_transport_requires_one_text_target_from_the_operator() -> None:
-    profile = load_prompt(Path("configs/nlp/prompts/cargo_template.yaml"))
+    profile = load_prompt(Path("tests/fixtures/cargo_profile.yaml"))
     responses = iter(
         [
             {
@@ -47,11 +47,11 @@ def test_transport_requires_one_text_target_from_the_operator() -> None:
             {"activity": "transport"},
             {
                 "activity": "transport",
-                "target": "crate A to point B",
+                "target": "point B",
             },
             {
                 "change": "Use point C",
-                "target": "crate A to point C",
+                "target": "point C",
             },
         ]
     )
@@ -63,8 +63,8 @@ def test_transport_requires_one_text_target_from_the_operator() -> None:
     class Encoder:
         def encode(self, texts: tuple[str, ...]) -> Embeddings:
             assert texts in (
-                ("transport", "crate A to point B"),
-                ("Use point C", "crate A to point C"),
+                ("transport", "point B"),
+                ("Use point C", "point C"),
             )
             return Embeddings("encoder", "v1", ((1.0,), (2.0,)))
 
@@ -80,7 +80,7 @@ def test_transport_requires_one_text_target_from_the_operator() -> None:
 
     reply = json.loads(session.submit("To point B.").to_json())
     assert reply["instruction"] == "USER_INSTRUCTION"
-    assert reply["draft"]["target"] == "crate A to point B"
+    assert reply["draft"]["target"] == "point B"
     assert reply["embeddings"]["fields"]["target"] == [2.0]
 
     assert session.submit("Use point C.").instruction == "USER_PROMPT"

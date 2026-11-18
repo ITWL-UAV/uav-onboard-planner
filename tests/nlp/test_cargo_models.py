@@ -21,7 +21,7 @@ from uav_onboard_planner.nlp.session import Session
 def test_transport_instruction_with_configured_models() -> None:
     systemone = SystemOneConfig.load(Path("configs/nlp/systemone/default.ini"))
     embeddings = EmbeddingConfig.load(Path("configs/nlp/embeddings/default.ini"))
-    profile = load_prompt(systemone.prompt_file)
+    profile = load_prompt(Path("tests/fixtures/cargo_profile.yaml"))
     assert isinstance(profile, PromptProfile)
     session = Session(
         HuggingFaceSystemOne(systemone, profile),
@@ -31,11 +31,10 @@ def test_transport_instruction_with_configured_models() -> None:
 
     operator_message = "Transport crate A to point B."
     expected_instruction = "USER_INSTRUCTION"
-    expected_target = "crate A to point B"
+    expected_target = "point B"
     reply = json.loads(session.submit(operator_message).to_json())
     assert reply.get("instruction") == expected_instruction, (operator_message, reply)
-    assert reply["draft"]["activity"].casefold() == "transport"
-    assert reply["draft"]["target"].casefold().rstrip(".") == expected_target
+    assert reply["draft"]["target"].casefold().rstrip(".") == expected_target.casefold()
     assert (
         len(reply["embeddings"]["fields"]["target"]) == reply["embeddings"]["dimension"]
     )

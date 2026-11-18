@@ -62,7 +62,7 @@ def _extract_fields(context: str, generate: Callable[[str], str]) -> dict[str, o
             continue
         if answer.startswith("Clarify:"):
             question = answer.removeprefix("Clarify:").strip()
-            if question:
+            if question and field.get("required", True):
                 return {"question": question}
             continue
         if kind == "text":

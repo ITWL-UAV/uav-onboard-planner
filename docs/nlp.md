@@ -54,10 +54,10 @@ modelowi pierwotne polecenie, zaakceptowane zmiany i oczekujące doprecyzowanie.
 Pytanie o doprecyzowanie pozostawia zaakceptowany stan i nie wywołuje enkodera.
 
 Szkic zawiera `schema_version`, `instruction` oraz jawne pola w `draft`.
-`USER_INSTRUCTION` ma wymagane `activity` i `target` oraz opcjonalną listę
-`constraints`. `USER_PROMPT` ma `change`, zaktualizowany `target`
+`USER_INSTRUCTION` wymaga `target`, a `activity` i listę `constraints`
+traktuje jako opcjonalne. `USER_PROMPT` ma `change`, zaktualizowany `target`
 i opcjonalne zmiany ograniczeń. `target` to krótka fraza podawana przez
-operatora, np. `crate A to point B`. Aplikacja prosi o doprecyzowanie,
+operatora, np. `point B`. Aplikacja prosi o doprecyzowanie,
 gdy model pominie wymagane pole.
 
 `embeddings` podaje identyfikator modelu, rewizję, wymiar i wektory
@@ -95,8 +95,9 @@ Pliki w [scenarios/](../scenarios/) zawierają czasy i wypowiedzi operatora.
 Oczekiwane typy instrukcji i wartości pól sprawdzają testy w katalogach
 `tests/nlp/` i `tests/communication_cli/`.
 
-Test z rzeczywistymi modelami można uruchomić osobno po instalacji
-zależności NLP. Pierwsze uruchomienie może pobrać wagi.
+Testy mają osobny profil w `tests/fixtures/cargo_profile.yaml`. Test
+z rzeczywistymi modelami można uruchomić osobno po instalacji zależności
+NLP. Pierwsze uruchomienie może pobrać wagi.
 
 ```sh
 UAV_TEST_MODELS=1 uv run --extra nlp pytest -q tests/nlp/test_cargo_models.py

@@ -19,16 +19,11 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
     from pathlib import Path
 
     from uav_onboard_planner.communication_cli.__main__ import run_replay, run_terminal
-    from uav_onboard_planner.nlp.config import (
-        PromptProfile,
-        SystemOneConfig,
-        load_prompt,
-    )
+    from uav_onboard_planner.nlp.config import PromptProfile, load_prompt
     from uav_onboard_planner.nlp.scenario import load_conversation
     from uav_onboard_planner.nlp.session import Embeddings, Session
 
-    settings = SystemOneConfig.load(Path("configs/nlp/systemone/default.ini"))
-    profile = load_prompt(settings.prompt_file)
+    profile = load_prompt(Path("tests/fixtures/cargo_profile.yaml"))
     assert isinstance(profile, PromptProfile)
     system = profile.prompts["SYSTEM"]
     general = profile.prompts["GENERAL_INSTRUCTION"]
@@ -47,15 +42,15 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
                     {"activity": "transport"},
                     {
                         "activity": "deliver",
-                        "target": "crate A to point B",
+                        "target": "point B",
                     },
                     {
                         "change": "Use point C",
-                        "target": "crate A to point C",
+                        "target": "point C",
                     },
                     {
                         "change": "Deliver before 14:00",
-                        "target": "crate A to point C",
+                        "target": "point C",
                         "constraints": ["Before 14:00"],
                     },
                 ]
@@ -78,7 +73,7 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
             else:
                 assert request["active_instruction"]["fields"] == {
                     "activity": "deliver",
-                    "target": "crate A to point B",
+                    "target": "point B",
                 }
             assert all(
                 set(field) == {"question", "type", "required", "embed"}
@@ -109,9 +104,9 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
     replies = [json.loads(line) for line in replay_out.getvalue().splitlines()]
     expected_turns = [
         ("Deliver crate A.", "CLARIFICATION", None),
-        ("Deliver it to point B.", "USER_INSTRUCTION", "crate A to point B"),
-        ("Deliver it to point C instead.", "USER_PROMPT", "crate A to point C"),
-        ("Deliver it before 14:00.", "USER_PROMPT", "crate A to point C"),
+        ("Deliver it to point B.", "USER_INSTRUCTION", "point B"),
+        ("Deliver it to point C instead.", "USER_PROMPT", "point C"),
+        ("Deliver it before 14:00.", "USER_PROMPT", "point C"),
     ]
     assert [
         (

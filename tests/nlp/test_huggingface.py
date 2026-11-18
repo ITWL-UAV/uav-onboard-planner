@@ -3,6 +3,28 @@ import json
 from uav_onboard_planner.nlp.huggingface import _extract_fields
 
 
+def test_optional_activity_does_not_block_a_destination_answer() -> None:
+    context = json.dumps(
+        {
+            "operator_message": "To point B.",
+            "fields": {
+                "activity": {
+                    "question": "What action?",
+                    "type": "text",
+                    "required": False,
+                },
+                "target": {
+                    "question": "What destination?",
+                    "type": "text",
+                    "required": True,
+                },
+            },
+        }
+    )
+    answers = iter(["Clarify: What action should I take?", "point B"])
+    assert _extract_fields(context, lambda _: next(answers)) == {"target": "point B"}
+
+
 def test_extraction_asks_one_question_per_field_and_parses_text_answers() -> None:
     prompts = []
     answers = iter(["transport", "cargo: crate A\ndestination: point B", "N/A"])
