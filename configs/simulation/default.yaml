@@ -1,0 +1,28 @@
+# Local ENU coordinates: east, north, up [m]. All aircraft start in flight.
+time_step: 0.01
+duration: 60.0
+sample_interval: 0.2
+seed: 42
+show_animation: false
+drones:
+  - name: survey
+    backend: rotorpy
+    model: hummingbird
+    position: [0.0, 0.0, 10.0]
+    speed: 2.0
+    heading: 0.0
+    arrival_radius: 0.5
+    waypoints:
+      - [10.0, 0.0, 10.0]
+      - [10.0, 10.0, 10.0]
+      - [0.0, 10.0, 10.0]
+  - name: traffic
+    backend: jsbsim
+    model: c172x
+    position: [-200.0, 0.0, 300.0]
+    speed: 50.0
+    heading: 0.0
+    arrival_radius: 40.0
+    waypoints:
+      - [-200.0, 1000.0, 300.0]
+      - [800.0, 1800.0, 300.0]

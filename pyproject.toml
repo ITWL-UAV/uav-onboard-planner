@@ -14,10 +14,16 @@ dependencies = []
 
 [dependency-groups]
 basic = []
-dev = ["pytest>=8"]
+dev = [
+    "jsbsim>=1.2,<2",
+    "pytest>=8",
+    "pyyaml>=6,<7",
+    "rotorpy>=3,<4",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["integration: runs real flight dynamics libraries on CPU"]
