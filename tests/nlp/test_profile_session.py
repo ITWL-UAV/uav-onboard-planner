@@ -7,6 +7,21 @@ from uav_onboard_planner.nlp.config import load_prompt
 from uav_onboard_planner.nlp.session import Embeddings, Session
 
 
+def test_general_defaults_must_match_the_user_instruction_schema(
+    tmp_path: Path,
+) -> None:
+    template = Path("configs/nlp/prompts/inspection_template.yaml")
+    path = tmp_path / template.name
+    path.write_text(
+        template.read_text(encoding="utf-8").replace(
+            "sites: [designated area]", "sites: []"
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"GENERAL_INSTRUCTION\.default_fields.*sites"):
+        load_prompt(path)
+
+
 def test_profile_drives_hierarchy_and_validates_before_encoding(tmp_path: Path) -> None:
     path = tmp_path / "park.yaml"
     path.write_text(
@@ -42,7 +57,6 @@ USER_PROMPT:
     contexts = []
     responses = iter(
         [
-            {"objective": "Survey", "subjects": ["trees"]},
             {"objective": "Map paths", "subjects": []},
             {"change": "Start at entrance"},
             {"objective": "New task"},
@@ -68,19 +82,22 @@ USER_PROMPT:
             return Embeddings("test/encoder", "v1", vectors)
 
     session = Session(Interpreter(), Encoder(), profile)
-    assert [context["instruction"] for context in contexts] == ["GENERAL_INSTRUCTION"]
-    assert contexts[0]["system"] == {"text": "Document public parks.", "fields": {}}
-    assert [reply.instruction for reply in session.initial] == ["GENERAL_INSTRUCTION"]
-    assert session.mission.active.fields == {
-        "objective": "Survey",
-        "subjects": ("trees",),
-    }
+    assert contexts == []
+    assert batches == []
+    assert session.initial == ()
+    assert session.mission.active.text == "Survey the trees."
+    assert session.mission.active.fields == {}
 
     first = json.loads(session.submit("Zmapuj alejki").to_json())
     assert first["instruction"] == "USER_INSTRUCTION"
     assert first["draft"] == {"objective": "Map paths"}
     assert first["embeddings"]["fields"] == {"objective": [0.0]}
     assert session.mission.active.fields == {"objective": "Map paths"}
+    assert contexts[0]["system"] == {"text": "Document public parks.", "fields": {}}
+    assert contexts[0]["active_instruction"] == {
+        "text": "Survey the trees.",
+        "fields": {},
+    }
 
     assert session.submit("Zacznij przy wejściu").instruction == "USER_PROMPT"
     with pytest.raises(ValueError, match="objective"):
@@ -103,7 +120,6 @@ USER_PROMPT:
     assert session.submit("Jeszcze inaczej").question is not None
     assert len(session.mission.changes) == 2
     assert batches == [
-        ("Survey", "trees"),
         ("Map paths",),
         ("Start at entrance",),
         ("Map all paths",),

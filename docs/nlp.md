@@ -45,12 +45,12 @@ tokenów. Sprawdź wymagane pooling i normalizację na karcie wybranego modelu.
 
 ## Wynik
 
-Przy starcie sesja przekazuje `SYSTEM` dosłownie jako kontekst przeznaczenia
-drona i interpretuje `GENERAL_INSTRUCTION` jako ogólne zadanie domyślne.
-W profilu inspekcji obejmuje ono rozpoznanie wyznaczonego obszaru
-i udokumentowanie widocznego stanu zewnętrznego budynków.
-Pierwsza przyjęta wypowiedź staje się `USER_INSTRUCTION` i zastępuje domyślne
-zadanie. Kolejne wypowiedzi stają się zmianami `USER_PROMPT`. Sesja przekazuje
+Sesja wczytuje `SYSTEM` i `GENERAL_INSTRUCTION` bez wywołania modeli.
+`SYSTEM` jest dosłownym kontekstem przeznaczenia drona. Domyślne zadanie
+inspekcyjne obejmuje rozpoznanie wyznaczonego obszaru i udokumentowanie
+widocznego stanu zewnętrznego budynków. Pierwsza przyjęta wypowiedź staje
+się `USER_INSTRUCTION` i zastępuje całe domyślne zadanie.
+Kolejne wypowiedzi stają się zmianami `USER_PROMPT`. Sesja przekazuje
 modelowi pierwotne polecenie, zaakceptowane zmiany i oczekujące doprecyzowanie.
 Pytanie o doprecyzowanie pozostawia zaakceptowany stan i nie wywołuje enkodera.
 
@@ -62,15 +62,13 @@ Pole tekstowe dostaje jeden wektor. Dla listy tekstów, np. `draft.sites`,
 nakładane ograniczenia zachowują zapisane liczby i jednostki w jawnej treści.
 
 Aby dodać profil, zdefiniuj cztery typy instrukcji jak w przykładzie
-inspekcji. Sekcje operatora mają `default_text: null`, a pozostałe zawierają
-tekst domyślny. Pod `json_extraction` zdefiniuj pola dla trzech pozostałych
-typów instrukcji. Tekst `SYSTEM` jest używany w całości.
-Każde pole określa pytanie przekazywane do System One (`question`), typ
-`text` lub `text_list`, wymagalność (`required`) i wektoryzację (`embed`).
-Opcjonalna sekcja `constraints` definiuje pole `draft.constraints` dla
-wskazanych typów instrukcji, używając tych samych czterech ustawień.
-Można nadal wczytać profile z polami `fields` i opisami `meaning` oraz
-wcześniejsze profile z pojedynczym kluczem `system`.
+inspekcji. Wpisz gotowe wartości w `GENERAL_INSTRUCTION.default_fields`.
+Są sprawdzane według tego samego schematu co wynik `USER_INSTRUCTION`.
+Sekcje operatora mają `default_text: null` i własny blok `fields`.
+Każde pole w tym bloku, w tym `constraints`, określa pytanie do System One
+(`question`), typ `text` lub `text_list`, wymagalność (`required`)
+i wektoryzację (`embed`). Starsze profile z opisami `meaning` lub
+pojedynczym kluczem `system` można nadal wczytać.
 
 ## Odtwarzanie scenariusza
 

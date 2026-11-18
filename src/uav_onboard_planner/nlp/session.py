@@ -4,8 +4,14 @@ from math import isfinite
 from types import MappingProxyType
 from typing import Protocol
 
-from ..mission.instructions import FieldValue, Instruction, InstructionType, Mission
-from .config import Prompt, PromptProfile
+from ..mission.instructions import (
+    FieldValue,
+    Instruction,
+    InstructionType,
+    Mission,
+    OperatorInstruction,
+)
+from .config import PromptProfile, parse_fields
 
 type Vector = tuple[float, ...]
 
@@ -72,33 +78,6 @@ def _question(proposal: object) -> str | None:
     return None
 
 
-def _fields(prompt: Prompt, proposal: object) -> dict[str, FieldValue]:
-    if not isinstance(proposal, dict) or any(
-        not isinstance(name, str) for name in proposal
-    ):
-        raise ValueError("model musi zwrócić obiekt JSON z kluczami tekstowymi")
-    unknown = set(proposal) - prompt.fields.keys()
-    if unknown:
-        raise ValueError(f"model zwrócił nieznane pola: {', '.join(sorted(unknown))}")
-
-    values: dict[str, FieldValue] = {}
-    for name, field in prompt.fields.items():
-        value = proposal.get(name)
-        if value is None:
-            continue
-        if field.type == "text" and isinstance(value, str):
-            if value.strip():
-                values[name] = value.strip()
-        elif field.type == "text_list" and isinstance(value, list):
-            if any(not isinstance(item, str) or not item.strip() for item in value):
-                raise ValueError(f"model zwrócił nieprawidłowe pole: {name}")
-            if value:
-                values[name] = tuple(item.strip() for item in value)
-        else:
-            raise ValueError(f"model zwrócił nieprawidłowe pole: {name}")
-    return values
-
-
 def _context(instruction: Instruction) -> dict[str, object]:
     return {"text": instruction.text, "fields": dict(instruction.fields)}
 
@@ -120,19 +99,15 @@ class Session:
         self.initial: tuple[Reply, ...] = ()
         if profile is not None:
             system_text = profile.prompts["SYSTEM"].default_text
-            general_text = profile.prompts["GENERAL_INSTRUCTION"].default_text
+            general = profile.prompts["GENERAL_INSTRUCTION"]
+            general_text = general.default_text
             assert system_text is not None and general_text is not None
-            system = Instruction(system_text, MappingProxyType({}))
-            general_reply = self._interpret(
-                "GENERAL_INSTRUCTION", general_text, {"system": _context(system)}
+            self.mission = Mission(
+                Instruction(system_text, MappingProxyType({})),
+                Instruction(
+                    general_text, MappingProxyType(dict(general.default_fields or {}))
+                ),
             )
-            if general_reply.draft is None:
-                raise ValueError(f"GENERAL_INSTRUCTION: {general_reply.question}")
-            general = Instruction(
-                general_text, MappingProxyType(general_reply.draft.copy())
-            )
-            self.mission = Mission(system, general)
-            self.initial = (general_reply,)
 
     @property
     def user_instruction(self) -> str | None:
@@ -232,7 +207,7 @@ class Session:
         return reply
 
     def _interpret(
-        self, kind: InstructionType, text: str, context: dict[str, object]
+        self, kind: OperatorInstruction, text: str, context: dict[str, object]
     ) -> Reply:
         assert self._profile is not None
         profile = self._profile
@@ -244,9 +219,7 @@ class Session:
                     "fields": {
                         name: asdict(field) for name, field in prompt.fields.items()
                     },
-                    "operator_message"
-                    if prompt.default_text is None
-                    else "profile_text": text,
+                    "operator_message": text,
                     **context,
                 },
                 ensure_ascii=False,
@@ -255,7 +228,7 @@ class Session:
         question = _question(proposal)
         if question is not None:
             return Reply(question=question, schema_version=profile.schema_version)
-        draft = _fields(prompt, proposal)
+        draft = parse_fields(prompt.fields, proposal)
         missing = [
             name
             for name, field in prompt.fields.items()

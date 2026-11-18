@@ -1,9 +1,10 @@
+from collections.abc import Mapping
 from configparser import ConfigParser, SectionProxy
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal, Self
 
-from ..mission.instructions import InstructionType
+from ..mission.instructions import FieldValue, InstructionType
 
 
 @dataclass(frozen=True)
@@ -127,12 +128,42 @@ class Field:
 class Prompt:
     default_text: str | None
     fields: dict[str, Field]
+    default_fields: dict[str, FieldValue] | None = None
 
 
 @dataclass(frozen=True)
 class PromptProfile:
     schema_version: int
     prompts: dict[InstructionType, Prompt]
+
+
+def parse_fields(
+    definitions: Mapping[str, Field], payload: object
+) -> dict[str, FieldValue]:
+    if not isinstance(payload, dict) or any(
+        not isinstance(name, str) for name in payload
+    ):
+        raise ValueError("oczekiwano obiektu z kluczami tekstowymi")
+    unknown = set(payload) - definitions.keys()
+    if unknown:
+        raise ValueError(f"nieznane pola: {', '.join(sorted(unknown))}")
+
+    values: dict[str, FieldValue] = {}
+    for name, field in definitions.items():
+        value = payload.get(name)
+        if value is None:
+            continue
+        if field.type == "text" and isinstance(value, str):
+            if value.strip():
+                values[name] = value.strip()
+        elif field.type == "text_list" and isinstance(value, list):
+            if any(not isinstance(item, str) or not item.strip() for item in value):
+                raise ValueError(f"nieprawidłowe pole: {name}")
+            if value:
+                values[name] = tuple(item.strip() for item in value)
+        else:
+            raise ValueError(f"nieprawidłowe pole: {name}")
+    return values
 
 
 def load_prompt(path: Path) -> PromptProfile | str:
@@ -146,11 +177,9 @@ def load_prompt(path: Path) -> PromptProfile | str:
         "USER_INSTRUCTION",
         "USER_PROMPT",
     )
-    profile_keys = {"schema_version", *kinds}
     if (
         not isinstance(data, dict)
-        or not profile_keys <= data.keys()
-        or data.keys() - profile_keys - {"json_extraction", "constraints"}
+        or set(data) != {"schema_version", *kinds}
         or type(data["schema_version"]) is not int
         or data["schema_version"] != 1
     ):
@@ -158,33 +187,20 @@ def load_prompt(path: Path) -> PromptProfile | str:
             f"{path}: expected schema_version 1 and four instruction types"
         )
 
-    separated = "json_extraction" in data
-    extraction = data.get("json_extraction", {})
-    constraints = data.get("constraints", {})
-    extractable = set(kinds) - {"SYSTEM"}
-    if not isinstance(extraction, dict) or (
-        separated and extraction.keys() != extractable
-    ):
-        raise ValueError(
-            f"{path}: json_extraction must cover GENERAL_INSTRUCTION, USER_INSTRUCTION and USER_PROMPT"
-        )
-    if (
-        not isinstance(constraints, dict)
-        or constraints.keys() - extractable
-        or ("constraints" in data and not separated)
-    ):
-        raise ValueError(f"{path}: invalid constraints section")
-
     section_keys = {"source", "default_text"}
-    if not separated:
-        section_keys.add("fields")
+    with_fields = section_keys | {"fields"}
     prompts: dict[InstructionType, Prompt] = {}
     for kind in kinds:
         section = data[kind]
         source = "profile" if kind in ("SYSTEM", "GENERAL_INSTRUCTION") else "operator"
+        expected = [with_fields]
+        if kind == "SYSTEM":
+            expected.append(section_keys)
+        if kind == "GENERAL_INSTRUCTION":
+            expected.append(section_keys | {"default_fields"})
         if (
             not isinstance(section, dict)
-            or set(section) != section_keys
+            or set(section) not in expected
             or section["source"] != source
         ):
             raise ValueError(f"{path}: invalid {kind} section")
@@ -196,18 +212,18 @@ def load_prompt(path: Path) -> PromptProfile | str:
         elif default is not None:
             raise ValueError(f"{path}: {kind}.default_text must be null")
 
-        definitions = extraction.get(kind, {}) if separated else section["fields"]
-        if not isinstance(definitions, dict) or (kind != "SYSTEM" and not definitions):
+        definitions = section.get("fields", {})
+        if not isinstance(definitions, dict) or (
+            source == "operator" and not definitions
+        ):
             raise ValueError(f"{path}: {kind}.fields must define at least one field")
-        if kind in constraints:
-            if "constraints" in definitions:
-                raise ValueError(
-                    f"{path}: duplicate field definition {kind}.constraints"
-                )
-            definitions = {**definitions, "constraints": constraints[kind]}
-        description_key = "question" if separated else "meaning"
         prompt_fields: dict[str, Field] = {}
         for name, field in definitions.items():
+            description_key = (
+                "question"
+                if isinstance(field, dict) and "question" in field
+                else "meaning"
+            )
             if (
                 not isinstance(name, str)
                 or not name.strip()
@@ -225,4 +241,26 @@ def load_prompt(path: Path) -> PromptProfile | str:
                 field[description_key], field["type"], field["required"], field["embed"]
             )
         prompts[kind] = Prompt(default, prompt_fields)
+
+    general_section = data["GENERAL_INSTRUCTION"]
+    if "default_fields" in general_section:
+        general = prompts["GENERAL_INSTRUCTION"]
+        instruction_fields = prompts["USER_INSTRUCTION"].fields
+        label = f"{path}: GENERAL_INSTRUCTION.default_fields"
+        try:
+            defaults = parse_fields(
+                instruction_fields, general_section["default_fields"]
+            )
+        except ValueError as error:
+            raise ValueError(f"{label}: {error}") from error
+        missing = [
+            name
+            for name, field in instruction_fields.items()
+            if field.required and name not in defaults
+        ]
+        if missing:
+            raise ValueError(f"{label}: missing required fields: {', '.join(missing)}")
+        prompts["GENERAL_INSTRUCTION"] = Prompt(
+            general.default_text, instruction_fields, defaults
+        )
     return PromptProfile(data["schema_version"], prompts)

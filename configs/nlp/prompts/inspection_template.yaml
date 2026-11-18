@@ -3,26 +3,23 @@ schema_version: 1
 SYSTEM:
   source: profile
   default_text: Serve as a civilian platform for aerial inspection of building exteriors.
+
 GENERAL_INSTRUCTION:
   source: profile
-  default_text: Survey the designated area to understand its surroundings and document the visible condition of building exteriors.
+  default_text: &general_objective >-
+    Survey the designated area to understand its surroundings and document
+    the visible condition of building exteriors.
+  default_fields:
+    objective: *general_objective
+    sites: [designated area]
+    constraints: []
+
 USER_INSTRUCTION:
   source: operator
   default_text: null
-USER_PROMPT:
-  source: operator
-  default_text: null
-
-json_extraction:
-  GENERAL_INSTRUCTION:
+  fields:
     objective:
-      question: What broad survey or observation task should guide the mission by default?
-      type: text
-      required: true
-      embed: true
-  USER_INSTRUCTION:
-    objective:
-      question: What exterior inspection objective did the operator explicitly state?
+      question: What specific exterior inspection task or outcome did the operator request for this mission?
       type: text
       required: true
       embed: true
@@ -31,7 +28,16 @@ json_extraction:
       type: text_list
       required: true
       embed: true
-  USER_PROMPT:
+    constraints:
+      question: What constraints did the operator explicitly specify, including any numbers and units?
+      type: text_list
+      required: false
+      embed: true
+
+USER_PROMPT:
+  source: operator
+  default_text: null
+  fields:
     change:
       question: What adjustment to the active inspection did the operator request?
       type: text
@@ -42,15 +48,8 @@ json_extraction:
       type: text_list
       required: true
       embed: true
-
-constraints:
-  USER_INSTRUCTION:
-    question: What constraints did the operator explicitly specify, including any numbers and units?
-    type: text_list
-    required: false
-    embed: true
-  USER_PROMPT:
-    question: What changes to the constraints did the operator explicitly request, including any numbers and units?
-    type: text_list
-    required: false
-    embed: true
+    constraints:
+      question: What changes to the constraints did the operator explicitly request, including any numbers and units?
+      type: text_list
+      required: false
+      embed: true

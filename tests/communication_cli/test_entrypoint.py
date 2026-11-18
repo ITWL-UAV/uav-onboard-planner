@@ -37,7 +37,6 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
         def __init__(self) -> None:
             self.responses = iter(
                 [
-                    {"objective": "Survey the area and document building exteriors"},
                     {"question": "Który dach?"},
                     {
                         "objective": "Inspect roof A",
@@ -52,13 +51,28 @@ def test_terminal_and_scenario_produce_the_same_replies() -> None:
         def interpret(self, context: str) -> object:
             request = json.loads(context)
             assert "expected" not in request
-            assert request["instruction"] != "SYSTEM"
+            assert request["instruction"] in ("USER_INSTRUCTION", "USER_PROMPT")
             assert request["system"] == {
                 "text": "Serve as a civilian platform for aerial inspection of building exteriors.",
                 "fields": {},
             }
-            if request["instruction"] == "GENERAL_INSTRUCTION":
-                assert "Survey the designated area" in request["profile_text"]
+            if request["instruction"] == "USER_INSTRUCTION":
+                active = request["active_instruction"]
+                assert active["text"].startswith("Survey the designated area")
+                assert active["fields"] == {
+                    "objective": active["text"],
+                    "sites": ["designated area"],
+                }
+                assert (
+                    "specific exterior inspection task or outcome"
+                    in (request["fields"]["objective"]["question"])
+                )
+            else:
+                assert request["active_instruction"]["fields"] == {
+                    "objective": "Inspect roof A",
+                    "sites": ["dach A"],
+                    "constraints": ["Zachowaj odległość 3 m."],
+                }
             assert all(
                 set(field) == {"question", "type", "required", "embed"}
                 and field["question"].endswith("?")
