@@ -43,6 +43,7 @@ własny plik przez `--config`. Archiwum źródłowe zawiera przykładową konfig
 | `seed` | Ziarno JSBSim, liczba całkowita z zakresu `[0, 2**32)`. |
 | `show_animation` | Czy odtworzyć animację po obliczeniach. |
 | `drones` | Niepusta lista pojazdów z unikalnymi nazwami. |
+| `route_changes` | Opcjonalna lista zmian trasy w trakcie epizodu. |
 
 Każdy pojazd określa `name`, `backend`, `model`, `position`, `speed`, `heading`,
 `arrival_radius` i niepustą listę `waypoints`. Wszystkie pola są wymagane;
@@ -56,6 +57,25 @@ z ruchem wskazówek zegara od północy. `arrival_radius` to promień kuli
 zaliczenia punktu w metrach, sprawdzany po każdym kroku dynamiki.
 Próbkowanie pliku odbywa się na pierwszym kroku osiągającym zadany czas próbki;
 próbka początkowa i końcowa zawsze są zapisywane.
+
+## Zaplanowana zmiana trasy
+
+[Scenariusz z jednym quadkopterem](../configs/simulation/route_change.yaml)
+rozpoczyna lot po dwóch punktach. Po 2 s zastępuje pozostałą trasę jednym
+nowym punktem. Uruchom go tą samą komendą co przykład domyślny, podając
+`--config configs/simulation/route_change.yaml` i nowy katalog wyników.
+
+Każda zmiana określa `time` w sekundach od początku, `drone`, `waypoints`
+i `arrival_radius`. Czas musi wypadać wewnątrz epizodu. Dwie zmiany dla
+jednego pojazdu w tej samej chwili są odrzucane. Epizod skraca krok dynamiki,
+jeśli trzeba dojść do chwili zmiany, i stosuje nową trasę przed następnym
+krokiem. Indeks punktu wraca wtedy do zera.
+
+Do uruchomienia w pamięci służy `create_episode(load_config(path))` z modułów
+`runner` i `config`. `snapshot()` zwraca bieżące próbki lotu, `step()`
+przesuwa epizod o jeden krok, a `finished` sygnalizuje osiągnięcie limitu
+czasu. `reset()` tworzy od nowa pojazdy i harmonogram. Próbki zawierają stan
+symulatora i status misji. Przy wyjątku z adaptera epizod wymaga resetu.
 
 ## Backend quadkoptera
 

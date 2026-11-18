@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 from .contracts import Mission, Position, position, positive
+from .scenario import RouteChange, schedule
 
 
 @dataclass(frozen=True)
@@ -26,13 +27,14 @@ class SimulationConfig:
     seed: int
     show_animation: bool
     drones: tuple[DroneConfig, ...]
+    route_changes: tuple[RouteChange, ...] = ()
 
 
 def load_config(path: Path) -> SimulationConfig:
     """Load and validate a scenario before initializing any simulation library."""
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict) or set(data) != {
+        if not isinstance(data, dict) or set(data) - {"route_changes"} != {
             "time_step",
             "duration",
             "sample_interval",
@@ -97,8 +99,27 @@ def load_config(path: Path) -> SimulationConfig:
                     mission,
                 )
             )
-        if len({d.name for d in drones}) != len(drones):
+        names = {d.name for d in drones}
+        if len(names) != len(drones):
             raise ValueError("drone names must be unique")
+        changes = data.get("route_changes", [])
+        if not isinstance(changes, list):
+            raise TypeError("route_changes must be a list")
+        route_changes = []
+        for change in changes:
+            if (
+                not isinstance(change, dict)
+                or set(change) != {"time", "drone", "waypoints", "arrival_radius"}
+                or not isinstance(change["drone"], str)
+            ):
+                raise ValueError("invalid route change fields")
+            route_changes.append(
+                RouteChange(
+                    change["time"],
+                    change["drone"],
+                    Mission(change["waypoints"], change["arrival_radius"]),
+                )
+            )
         return SimulationConfig(
             data["time_step"],
             data["duration"],
@@ -106,6 +127,7 @@ def load_config(path: Path) -> SimulationConfig:
             data["seed"],
             data["show_animation"],
             tuple(drones),
+            schedule(tuple(route_changes), names, data["duration"]),
         )
     except (yaml.YAMLError, TypeError, KeyError, OverflowError) as error:
         raise ValueError(f"invalid simulation configuration: {error}") from error

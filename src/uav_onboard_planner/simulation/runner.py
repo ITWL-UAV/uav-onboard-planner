@@ -2,13 +2,13 @@ import csv
 import json
 from dataclasses import asdict
 from importlib.metadata import version
-from math import isclose
 from pathlib import Path
 from platform import python_version
 from typing import NotRequired, TypedDict
 
 from .config import SimulationConfig
-from .contracts import Autopilot, FlightState
+from .contracts import Autopilot
+from .episode import Episode, FlightSample
 from .mission import Flight, Simulation
 
 
@@ -42,12 +42,24 @@ def create_simulation(config: SimulationConfig) -> Simulation:
     return Simulation(flights)
 
 
+def create_episode(config: SimulationConfig) -> Episode:
+    return Episode(
+        lambda: create_simulation(config),
+        config.time_step,
+        config.duration,
+        config.route_changes,
+    )
+
+
 def run(config: SimulationConfig, output: Path) -> dict[str, str]:
     """Run a scenario; keep partial recordings on failure, never overwrite a run."""
-    simulation = create_simulation(config)
+    episode = create_episode(config)
     output.mkdir(parents=True, exist_ok=False)
+    configuration = asdict(config)
+    if not config.route_changes:
+        del configuration["route_changes"]
     metadata: RunMetadata = {
-        "configuration": asdict(config),
+        "configuration": configuration,
         "python": python_version(),
         "packages": {
             name: version(name)
@@ -74,42 +86,31 @@ def run(config: SimulationConfig, output: Path) -> dict[str, str]:
             ]
         )
 
-        def record(states: dict[str, FlightState]) -> None:
-            for name, state in states.items():
-                flight = simulation.flights[name]
+        def record(samples: dict[str, FlightSample]) -> None:
+            for name, sample in samples.items():
+                state = sample.state
                 writer.writerow(
                     [
                         state.time,
                         name,
                         *state.position,
                         *state.velocity,
-                        flight.status,
-                        flight.waypoint_index,
+                        sample.status,
+                        sample.waypoint,
                     ]
                 )
 
-        record(
-            {
-                name: flight.autopilot.state
-                for name, flight in simulation.flights.items()
-            }
-        )
+        samples = episode.snapshot()
+        record(samples)
         next_sample = config.sample_interval
-        while simulation.time < config.duration:
-            states = simulation.step(
-                min(config.time_step, config.duration - simulation.time)
-            )
-            finished = isclose(simulation.time, config.duration, rel_tol=1e-12)
-            if simulation.time + 1e-9 >= next_sample or finished:
-                record(states)
+        while not episode.finished:
+            samples = episode.step()
+            if episode.time + 1e-9 >= next_sample or episode.finished:
+                record(samples)
                 next_sample += config.sample_interval
-            if finished:
-                break
-    statuses: dict[str, str] = {
-        name: flight.status for name, flight in simulation.flights.items()
-    }
+    statuses: dict[str, str] = {name: sample.status for name, sample in samples.items()}
     metadata["status"] = "finished"
     metadata["missions"] = statuses
-    metadata["simulated_seconds"] = simulation.time
+    metadata["simulated_seconds"] = episode.time
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return statuses

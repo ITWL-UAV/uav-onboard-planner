@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from uav_onboard_planner.simulation.config import load_config
-from uav_onboard_planner.simulation.runner import run
+from uav_onboard_planner.simulation.runner import create_episode, run
 
 
 @pytest.mark.integration
@@ -45,3 +45,25 @@ def test_final_sample_is_not_duplicated_by_rounding(
         rows = [row for row in csv.DictReader(stream) if row["drone"] == "survey"]
     assert len(rows) == 2
     assert float(rows[-1]["time_s"]) == pytest.approx(config.duration)
+
+
+@pytest.mark.integration
+def test_scheduled_route_matches_recording(tmp_path: Path) -> None:
+    config = load_config(Path("configs/simulation/route_change.yaml"))
+    output = tmp_path / "run"
+    assert run(config, output) == {"survey": "completed"}
+    with (output / "trajectory.csv").open() as stream:
+        rows = list(csv.DictReader(stream))
+
+    episode = create_episode(config)
+    sample = episode.snapshot()["survey"]
+    for row in rows:
+        time = float(row["time_s"])
+        while sample.state.time < time - 1e-10:
+            sample = episode.step()["survey"]
+        assert sample.state.time == pytest.approx(time)
+        assert sample.state.position == pytest.approx(
+            tuple(float(row[key]) for key in ("east_m", "north_m", "up_m"))
+        )
+        assert sample.status == row["status"]
+    assert sample.state.position == pytest.approx((2, 4, 10), abs=0.3)

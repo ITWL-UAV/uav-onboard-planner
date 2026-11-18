@@ -1,0 +1,22 @@
+time_step: 0.01
+duration: 10.0
+sample_interval: 0.2
+seed: 42
+show_animation: false
+drones:
+  - name: survey
+    backend: rotorpy
+    model: hummingbird
+    position: [0.0, 0.0, 10.0]
+    speed: 2.0
+    heading: 0.0
+    arrival_radius: 0.25
+    waypoints:
+      - [2.0, 0.0, 10.0]
+      - [20.0, 0.0, 10.0]
+route_changes:
+  - time: 2.0
+    drone: survey
+    arrival_radius: 0.25
+    waypoints:
+      - [2.0, 4.0, 10.0]
