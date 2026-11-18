@@ -13,6 +13,7 @@ Docelowy podział dokumentacji poniżej jest mapą odnośników. Pliki należy d
 | Plik | Zakres |
 | --- | --- |
 | [README.md](README.md) | Instalacja, uruchomienie, dostępne funkcje i aktualna struktura repozytorium. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Zasady kontrybucji, format komunikatów commitów i tytułów pull requestów oraz sposób ich weryfikacji w CI. |
 | [docs/project.md](docs/project.md) | Cel, zakres, wymagania, ograniczenia i etapy realizacji. |
 | [docs/architecture.md](docs/architecture.md) | Moduły, kierunki zależności, porty, adaptery i przepływ danych. |
 | [docs/mission.md](docs/mission.md) | Hierarchia instrukcji, polecenia GUI, kontrakty komunikacji i cykl życia misji. |
@@ -23,6 +24,8 @@ Docelowy podział dokumentacji poniżej jest mapą odnośników. Pliki należy d
 Przed pracą przeczytaj dokumentację dotyczącą zmienianego obszaru. Jeśli jej brakuje, opieraj się na zatwierdzonych wymaganiach i istniejącym kodzie. Brak dokumentu nie oznacza zgody na samodzielne rozstrzygnięcie otwartej decyzji projektowej.
 
 ## Sposób pracy
+
+- Przed przygotowaniem commita lub utworzeniem, aktualizacją albo scaleniem pull requesta przeczytaj [CONTRIBUTING.md](CONTRIBUTING.md). Sprawdź zgodność nowych komunikatów commitów i tytułu PR z Conventional Commits. Przy squash merge użyj tytułu PR jako tematu commita.
 
 - Przed zmianami znajdź i przeczytaj właściwe `AGENTS.md` oraz `CLAUDE.md`, także w katalogach nadrzędnych i w zmienianym poddrzewie.
 - Najpierw poznaj istniejącą implementację, jej wywołania, kontrakty i testy. Korzystaj z obecnych rozwiązań, zanim dodasz nowe.
@@ -74,6 +77,7 @@ Przed pracą przeczytaj dokumentację dotyczącą zmienianego obszaru. Jeśli je
 - Testy pisz w `pytest`. Organizuj je w osobnych plikach i katalogach odpowiadających testowanym modułom. Współdzielone fixtures umieszczaj w `conftest.py` na odpowiednim poziomie, jeśli są potrzebne.
 - Nowe zachowanie i poprawki błędów rozwijaj w cyklu: test opisujący wymaganie, potwierdzona porażka, minimalna implementacja, refaktoring.
 - Test ma sprawdzać obserwowalne zachowanie lub kontrakt, a nie kopiować strukturę implementacji. Poprawka błędu powinna pozostawić test regresyjny.
+- Testy muszą być niezależne od konkretnych wartości w roboczych i przykładowych konfiguracjach repozytorium. Jeżeli poprawna zmiana wartości w takim pliku powoduje porażkę testu, popraw test. Gdy do sprawdzenia zachowania potrzebujesz określonych danych, użyj fixture przeznaczonej do testów albo utwórz konfigurację w `tmp_path`. Testy ładowania konfiguracji sprawdzają kontrakt, walidację i interpretację danych na kontrolowanych wejściach.
 - Logikę domenową testuj bez GPU, sieci i sprzętu. Stosuj małe atrapowe adaptery; unikaj rozbudowanego mockowania szczegółów bibliotek.
 - Testy integracyjne adapterów oddziel od szybkich testów jednostkowych. Wymagania sprzętowe i sposób uruchomienia oznaczaj jawnie.
 - Sprawdzaj brakujące i opóźnione obserwacje, błędne polecenia oraz przerwanie wykonania, gdy dotyczą zmienianego zachowania.

@@ -1,14 +1,15 @@
 import csv
 import json
+from contextlib import ExitStack
 from dataclasses import asdict
 from importlib.metadata import version
-from math import isclose
 from pathlib import Path
 from platform import python_version
 from typing import NotRequired, TypedDict
 
 from .config import SimulationConfig
-from .contracts import Autopilot, FlightState
+from .contracts import Autopilot
+from .episode import Episode, EpisodeEndReason, FlightSample
 from .mission import Flight, Simulation
 
 
@@ -19,6 +20,7 @@ class RunMetadata(TypedDict):
     status: str
     missions: NotRequired[dict[str, str]]
     simulated_seconds: NotRequired[float]
+    end_reason: NotRequired[EpisodeEndReason]
 
 
 def create_simulation(config: SimulationConfig) -> Simulation:
@@ -42,12 +44,38 @@ def create_simulation(config: SimulationConfig) -> Simulation:
     return Simulation(flights)
 
 
+def create_episode(config: SimulationConfig) -> Episode:
+    return Episode(
+        lambda: create_simulation(config),
+        config.time_step,
+        config.duration,
+        config.route_changes,
+        cancellations=config.mission_cancellations,
+        altimeters={
+            drone.name: drone.altimeter
+            for drone in config.drones
+            if drone.altimeter is not None
+        },
+        seed=config.seed,
+    )
+
+
 def run(config: SimulationConfig, output: Path) -> dict[str, str]:
     """Run a scenario; keep partial recordings on failure, never overwrite a run."""
-    simulation = create_simulation(config)
+    episode = create_episode(config)
     output.mkdir(parents=True, exist_ok=False)
+    configuration = asdict(config)
+    if not config.route_changes:
+        del configuration["route_changes"]
+    if not config.mission_cancellations:
+        del configuration["mission_cancellations"]
+    for drone in configuration["drones"]:
+        if drone["altimeter"] is None:
+            del drone["altimeter"]
+        elif not drone["altimeter"]["outages"]:
+            del drone["altimeter"]["outages"]
     metadata: RunMetadata = {
-        "configuration": asdict(config),
+        "configuration": configuration,
         "python": python_version(),
         "packages": {
             name: version(name)
@@ -57,7 +85,10 @@ def run(config: SimulationConfig, output: Path) -> dict[str, str]:
     }
     metadata_path = output / "run.json"
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-    with (output / "trajectory.csv").open("w", newline="", encoding="utf-8") as stream:
+    with ExitStack() as files:
+        stream = files.enter_context(
+            (output / "trajectory.csv").open("w", newline="", encoding="utf-8")
+        )
         writer = csv.writer(stream)
         writer.writerow(
             [
@@ -74,42 +105,74 @@ def run(config: SimulationConfig, output: Path) -> dict[str, str]:
             ]
         )
 
-        def record(states: dict[str, FlightState]) -> None:
-            for name, state in states.items():
-                flight = simulation.flights[name]
+        altitude_writer = None
+        if any(drone.altimeter is not None for drone in config.drones):
+            altitude_stream = files.enter_context(
+                (output / "altitude.csv").open("w", newline="", encoding="utf-8")
+            )
+            altitude_writer = csv.writer(altitude_stream)
+            altitude_writer.writerow(
+                [
+                    "drone",
+                    "measured_at_s",
+                    "available_at_s",
+                    "received_at_s",
+                    "altitude_m",
+                ]
+            )
+
+        def record_altitude() -> None:
+            if altitude_writer is not None:
+                for name, measurements in episode.altitude_updates().items():
+                    altitude_writer.writerows(
+                        (
+                            name,
+                            sample.measured_at_s,
+                            sample.available_at_s,
+                            episode.time,
+                            sample.altitude_m,
+                        )
+                        for sample in measurements
+                    )
+
+        def record(samples: dict[str, FlightSample]) -> None:
+            for name, sample in samples.items():
+                state = sample.state
                 writer.writerow(
                     [
                         state.time,
                         name,
                         *state.position,
                         *state.velocity,
-                        flight.status,
-                        flight.waypoint_index,
+                        sample.status,
+                        sample.waypoint,
                     ]
                 )
 
-        record(
-            {
-                name: flight.autopilot.state
-                for name, flight in simulation.flights.items()
-            }
-        )
+        samples = episode.snapshot()
+        record(samples)
+        record_altitude()
         next_sample = config.sample_interval
-        while simulation.time < config.duration:
-            states = simulation.step(
-                min(config.time_step, config.duration - simulation.time)
-            )
-            finished = isclose(simulation.time, config.duration, rel_tol=1e-12)
-            if simulation.time + 1e-9 >= next_sample or finished:
-                record(states)
+        while not episode.finished:
+            try:
+                samples = episode.step()
+            except Exception:
+                metadata["status"] = "failed"
+                metadata["end_reason"] = "error"
+                metadata["simulated_seconds"] = episode.time
+                metadata_path.write_text(
+                    json.dumps(metadata, indent=2), encoding="utf-8"
+                )
+                raise
+            record_altitude()
+            if episode.time + 1e-9 >= next_sample or episode.finished:
+                record(samples)
                 next_sample += config.sample_interval
-            if finished:
-                break
-    statuses: dict[str, str] = {
-        name: flight.status for name, flight in simulation.flights.items()
-    }
+    statuses: dict[str, str] = {name: sample.status for name, sample in samples.items()}
     metadata["status"] = "finished"
     metadata["missions"] = statuses
-    metadata["simulated_seconds"] = simulation.time
+    metadata["simulated_seconds"] = episode.time
+    assert episode.outcome is not None
+    metadata["end_reason"] = episode.outcome.reason
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return statuses
