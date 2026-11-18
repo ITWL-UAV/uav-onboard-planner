@@ -15,9 +15,13 @@ dependencies = []
 [dependency-groups]
 basic = []
 dev = [
+    "jsbsim>=1.2,<2",
     "mypy>=2.4.1",
     "pytest>=8",
+    "pyyaml>=6,<7",
+    "rotorpy>=3,<4",
     "ruff>=0.17.5",
+    "types-pyyaml>=6.0.12.20261113",
 ]
 
 [tool.setuptools.packages.find]
@@ -25,7 +29,12 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["integration: runs real flight dynamics libraries on CPU"]
 
 [tool.mypy]
 python_version = "3.12"
 check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["rotorpy.*"]
+ignore_missing_imports = true
