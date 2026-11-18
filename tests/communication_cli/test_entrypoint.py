@@ -79,6 +79,11 @@ def test_terminal_and_replay_return_the_same_replies() -> None:
         "point C",
     )
     assert change["draft"]["constraints"] == ["Before 14:00"]
+    assert instruction["embeddings"] == {
+        "model": "encoder",
+        "revision": "v1",
+        "dimension": 1,
+    }
     assert json.loads(metadata.getvalue()) == {
         "conversation": "missing-destination",
         "seed": 1,

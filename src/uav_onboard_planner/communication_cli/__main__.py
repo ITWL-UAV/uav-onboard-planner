@@ -33,7 +33,9 @@ def run_terminal(
                     else "User prompt: "
                 )
                 print(
-                    reply.to_json(indent=2 if interactive else None),
+                    reply.to_json(
+                        indent=2 if interactive else None, include_vectors=False
+                    ),
                     file=output,
                     flush=True,
                 )
@@ -53,7 +55,7 @@ def run_replay(
         for scheduled in conversation.turns:
             for turn, reply in replay.advance(scheduled.time):
                 delivered.append({"time": turn.time, "text": turn.text})
-                print(reply.to_json(), file=output, flush=True)
+                print(reply.to_json(include_vectors=False), file=output, flush=True)
     finally:
         record = {
             "conversation": conversation.identifier,
@@ -118,7 +120,7 @@ def main() -> int:
             prompt if isinstance(prompt, PromptProfile) else None,
         )
         if args.text is not None:
-            print(session.submit(args.text).to_json())
+            print(session.submit(args.text).to_json(include_vectors=False))
             return 0
         if conversation is not None:
             run_replay(session, conversation, sys.stdout, sys.stderr)

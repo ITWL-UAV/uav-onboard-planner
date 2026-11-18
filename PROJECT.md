@@ -83,7 +83,7 @@ Dodatkowe moduły tradycyjnej stacji kontroli nie będą implementowane w ramach
 
 W pierwszym prototypie stacja naziemna ma przyjmować kolejne wypowiedzi w ramach jednej sesji. Moduł rozmowy ma korzystać z dwóch źródeł tekstu:
 
-- **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie po angielsku, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Transport crate A to point B” może wpisać „Deliver it to point C instead”. CLI pokazuje pełny szkic JSON, w tym brakujące pola i embeddingi przyjętych poleceń.
+- **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie po angielsku, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Transport crate A to point B” może wpisać „Deliver it to point C instead”. CLI pokazuje pełny szkic JSON, w tym brakujące pola i metadane embeddingów przyjętych poleceń.
 - **Scenariusz YAML.** Odtwarzacz podaje wypowiedzi do tego samego modułu rozmowy w kolejności i chwilach zdefiniowanych w scenariuszu. Czas liczy się od początku epizodu według zegara symulacji. Odtwarzacz przekazuje oryginalny tekst, dzięki czemu test obejmuje również jego interpretację.
 
 System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Wybiera dosłowny fragment wypowiedzi albo brak odpowiedzi. Moduł rozmowy sprawdza wynik względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Brakujące wartości w szkicu otrzymują `null`. Brak wymaganego pola lub wynik poniżej `0.6` pozostawia ostatnią zaakceptowaną instrukcję i wymaga precyzyjniejszej wypowiedzi. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.

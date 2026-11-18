@@ -71,9 +71,10 @@ w tym adapterze nie jest skalibrowaną miarą trafności. Jeśli dowolne pole
 ma wynik poniżej `0.6`, CLI pokazuje je w `low_confidence`, zachowuje
 dotychczasową instrukcję i wyświetla `More precise user prompt:`.
 
-`embeddings` podaje identyfikator modelu, rewizję, wymiar i wektory
-według nazw pól. `target` otrzymuje jeden wektor, a wektory listy
-`constraints` zachowują kolejność elementów.
+W CLI `embeddings` podaje identyfikator modelu, rewizję i wymiar.
+Kod korzystający z sesji ma też dostęp do wektorów według nazw pól.
+`target` otrzymuje jeden wektor, a wektory listy `constraints` zachowują
+kolejność elementów.
 
 Aby dodać profil, zdefiniuj cztery typy instrukcji jak w profilu transportowym.
 W `fields` sekcji `SYSTEM` i `GENERAL_INSTRUCTION` wpisz

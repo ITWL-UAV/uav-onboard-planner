@@ -86,7 +86,9 @@ class Reply:
     def needs_clarification(self) -> bool:
         return bool(self.missing_required or self.low_confidence)
 
-    def to_json(self, *, indent: int | None = None) -> str:
+    def to_json(
+        self, *, indent: int | None = None, include_vectors: bool = True
+    ) -> str:
         draft = (
             self.draft
             if self.draft is not None
@@ -108,16 +110,18 @@ class Reply:
         if self.needs_clarification:
             data["needs_clarification"] = True
         if self.embeddings is not None:
-            data["embeddings"] = {
+            embeddings: dict[str, object] = {
                 "model": self.embeddings.model,
                 "revision": self.embeddings.revision,
                 "dimension": self.embeddings.dimension,
-                "fields": (
+            }
+            if include_vectors:
+                embeddings["fields"] = (
                     self.vectors_by_field
                     if self.vectors_by_field is not None
                     else {"sites": self.embeddings.vectors}
-                ),
-            }
+                )
+            data["embeddings"] = embeddings
         return json.dumps(data, ensure_ascii=False, allow_nan=False, indent=indent)
 
 
