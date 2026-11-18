@@ -13,22 +13,41 @@ class RouteChange:
     mission: Mission
 
 
-def schedule(
-    changes: tuple[RouteChange, ...], drones: Collection[str], duration: float
-) -> tuple[RouteChange, ...]:
+@dataclass(frozen=True)
+class MissionCancellation:
+    """Cancel the named vehicle's active mission at a simulation time in seconds."""
+
+    time: float
+    drone: str
+
+
+def validate_route_change(mission: Mission) -> None:
+    if any(point[2] <= 0 for point in mission.waypoints):
+        raise ValueError("route change waypoints must be above ground")
+
+
+def schedule[Event: RouteChange | MissionCancellation](
+    events: tuple[Event, ...], drones: Collection[str], duration: float
+) -> tuple[Event, ...]:
     seen: set[tuple[float, str]] = set()
-    for change in changes:
-        positive(change.time, "route change time")
-        if change.time >= duration:
-            raise ValueError("route change time must be before episode end")
-        if change.drone not in drones:
-            raise ValueError(f"unknown drone in route change: {change.drone!r}")
-        if any(p[2] <= 0 for p in change.mission.waypoints):
-            raise ValueError("route change waypoints must be above ground")
-        key = (change.time, change.drone)
+    for event in events:
+        kind = (
+            "route change" if isinstance(event, RouteChange) else "mission cancellation"
+        )
+        positive(event.time, f"{kind} time")
+        if event.time >= duration:
+            raise ValueError(f"{kind} time must be before episode end")
+        if event.drone not in drones:
+            raise ValueError(f"unknown drone in {kind}: {event.drone!r}")
+        if isinstance(event, RouteChange):
+            validate_route_change(event.mission)
+        key = (event.time, event.drone)
         if key in seen:
+            conflict = (
+                "route changes" if isinstance(event, RouteChange) else "mission events"
+            )
             raise ValueError(
-                f"conflicting route changes for {change.drone} at {change.time} s"
+                f"conflicting {conflict} for {event.drone} at {event.time} s"
             )
         seen.add(key)
-    return tuple(sorted(changes, key=lambda change: change.time))
+    return tuple(sorted(events, key=lambda event: event.time))

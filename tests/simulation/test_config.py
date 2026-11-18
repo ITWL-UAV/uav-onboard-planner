@@ -56,6 +56,10 @@ def test_invalid_run_parameters(tmp_path: Path, field: str, value) -> None:
         ("heading", "north"),
         ("waypoints", []),
         ("arrival_radius", 0),
+        ("altimeter", None),
+        ("altimeter", {"noise_std_m": 0.2}),
+        ("altimeter", {"noise_std_m": -0.2, "delay_s": 0}),
+        ("altimeter", {"noise_std_m": 0.2, "delay_s": True}),
     ],
 )
 def test_invalid_aircraft_parameters(tmp_path: Path, field: str, value) -> None:
@@ -73,4 +77,51 @@ def test_duplicate_names_are_rejected(tmp_path: Path) -> None:
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(data))
     with pytest.raises(ValueError, match="unique"):
+        load_config(path)
+
+
+def test_altimeter_profile_is_resolved_relative_to_the_scenario(tmp_path: Path) -> None:
+    profiles = tmp_path / "sensors"
+    profiles.mkdir()
+    profile = profiles / "altimeter.yaml"
+    profile.write_text("noise_std_m: 0.3\ndelay_s: 0.05\n")
+    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+    data["drones"][0]["altimeter"] = "sensors/altimeter.yaml"
+    scenario = tmp_path / "scenario.yaml"
+    scenario.write_text(yaml.safe_dump(data))
+
+    altimeter = load_config(scenario).drones[0].altimeter
+    assert altimeter is not None
+    assert altimeter.noise_std_m == 0.3
+    assert altimeter.delay_s == 0.05
+
+    profile.write_text("noise_std_m: 0.3\ndelay_s: -1\n")
+    with pytest.raises(ValueError, match="delay_s"):
+        load_config(scenario)
+
+    profile.unlink()
+    with pytest.raises(FileNotFoundError) as error:
+        load_config(scenario)
+    assert error.value.filename == str(profile)
+
+
+@pytest.mark.parametrize(
+    "cancellation,message",
+    [
+        ({"time": 60, "drone": "survey"}, "before episode end"),
+        ({"time": 1, "drone": "missing"}, "unknown drone"),
+        ({"time": 1, "drone": "survey"}, "conflicting mission events"),
+    ],
+)
+def test_invalid_mission_cancellation(
+    tmp_path: Path, cancellation, message: str
+) -> None:
+    data = yaml.safe_load(Path("configs/simulation/default.yaml").read_text())
+    data["mission_cancellations"] = [cancellation]
+    data["route_changes"] = [
+        {"time": 1, "drone": "survey", "arrival_radius": 1, "waypoints": [[1, 0, 10]]}
+    ]
+    path = tmp_path / "scenario.yaml"
+    path.write_text(yaml.safe_dump(data))
+    with pytest.raises(ValueError, match=message):
         load_config(path)

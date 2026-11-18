@@ -5,7 +5,8 @@ from pathlib import Path
 import yaml
 
 from .contracts import Mission, Position, position, positive
-from .scenario import RouteChange, schedule
+from .scenario import MissionCancellation, RouteChange, schedule
+from .sensors import AltimeterConfig
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class DroneConfig:
     speed: float
     heading: float
     mission: Mission
+    altimeter: AltimeterConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -28,19 +30,34 @@ class SimulationConfig:
     show_animation: bool
     drones: tuple[DroneConfig, ...]
     route_changes: tuple[RouteChange, ...] = ()
+    mission_cancellations: tuple[MissionCancellation, ...] = ()
 
 
 def load_config(path: Path) -> SimulationConfig:
     """Load and validate a scenario before initializing any simulation library."""
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        return _parse_config(data)
+        return _parse_config(data, path.parent)
     except (yaml.YAMLError, TypeError, KeyError, OverflowError) as error:
         raise ValueError(f"invalid simulation configuration: {error}") from error
 
 
-def _parse_config(data: object) -> SimulationConfig:
-    if not isinstance(data, dict) or set(data) - {"route_changes"} != {
+def _parse_altimeter(settings: object, directory: Path) -> AltimeterConfig:
+    if isinstance(settings, str):
+        if not settings.strip():
+            raise ValueError("altimeter profile path must not be empty")
+        path = directory / settings
+        settings = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(settings, dict) or set(settings) != {"noise_std_m", "delay_s"}:
+        raise ValueError("invalid altimeter fields")
+    return AltimeterConfig(settings["noise_std_m"], settings["delay_s"])
+
+
+def _parse_config(data: object, directory: Path) -> SimulationConfig:
+    if not isinstance(data, dict) or set(data) - {
+        "route_changes",
+        "mission_cancellations",
+    } != {
         "time_step",
         "duration",
         "sample_interval",
@@ -65,7 +82,7 @@ def _parse_config(data: object) -> SimulationConfig:
         raise ValueError("drones must be a nonempty list")
     drones = []
     for drone in data["drones"]:
-        if not isinstance(drone, dict) or set(drone) != {
+        if not isinstance(drone, dict) or set(drone) - {"altimeter"} != {
             "name",
             "backend",
             "model",
@@ -92,6 +109,9 @@ def _parse_config(data: object) -> SimulationConfig:
         mission = Mission(drone["waypoints"], drone["arrival_radius"])
         if any(p[2] <= 0 for p in mission.waypoints):
             raise ValueError("waypoints must be above ground")
+        altimeter = None
+        if "altimeter" in drone:
+            altimeter = _parse_altimeter(drone["altimeter"], directory)
         drones.append(
             DroneConfig(
                 drone["name"],
@@ -101,6 +121,7 @@ def _parse_config(data: object) -> SimulationConfig:
                 drone["speed"],
                 drone["heading"],
                 mission,
+                altimeter,
             )
         )
     names = {d.name for d in drones}
@@ -124,6 +145,25 @@ def _parse_config(data: object) -> SimulationConfig:
                 Mission(change["waypoints"], change["arrival_radius"]),
             )
         )
+    cancellations = data.get("mission_cancellations", [])
+    if not isinstance(cancellations, list):
+        raise TypeError("mission_cancellations must be a list")
+    mission_cancellations = []
+    for cancellation in cancellations:
+        if (
+            not isinstance(cancellation, dict)
+            or set(cancellation) != {"time", "drone"}
+            or not isinstance(cancellation["drone"], str)
+        ):
+            raise ValueError("invalid mission cancellation fields")
+        mission_cancellations.append(
+            MissionCancellation(cancellation["time"], cancellation["drone"])
+        )
+    events: tuple[RouteChange | MissionCancellation, ...] = (
+        *route_changes,
+        *mission_cancellations,
+    )
+    events = schedule(events, names, data["duration"])
     return SimulationConfig(
         data["time_step"],
         data["duration"],
@@ -131,5 +171,6 @@ def _parse_config(data: object) -> SimulationConfig:
         data["seed"],
         data["show_animation"],
         tuple(drones),
-        schedule(tuple(route_changes), names, data["duration"]),
+        tuple(event for event in events if isinstance(event, RouteChange)),
+        tuple(event for event in events if isinstance(event, MissionCancellation)),
     )
