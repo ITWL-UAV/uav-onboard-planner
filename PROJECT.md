@@ -79,6 +79,31 @@ Przewidziane komponenty:
 
 Dodatkowe moduły tradycyjnej stacji kontroli nie będą implementowane w ramach projektu — mają zostać wykorzystane jako gotowe rozwiązania.
 
+### 3.5. Czat operatora i odtwarzanie rozmów
+
+W pierwszym prototypie stacja naziemna ma przyjmować kolejne wypowiedzi w ramach jednej sesji. Moduł rozmowy ma korzystać z dwóch źródeł tekstu:
+
+- **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Zaplanuj inspekcję dachów A i B” może wpisać „Jednak pomiń drugi dach”. CLI pokazuje zaktualizowaną treść polecenia lub pytanie o doprecyzowanie. W demonstracji można również obejrzeć JSON zawierający embeddingi.
+- **Scenariusz YAML.** Odtwarzacz podaje wypowiedzi do tego samego modułu rozmowy w kolejności i chwilach zdefiniowanych w scenariuszu. Czas liczy się od początku epizodu według zegara symulacji. Odtwarzacz przekazuje oryginalny tekst, dzięki czemu test obejmuje również jego interpretację.
+
+Model System One otrzymuje nową wypowiedź wraz z kontekstem rozmowy i aktualną instrukcją. Zwraca proponowaną interpretację jako JSON. Moduł rozmowy waliduje ją względem schematu i hierarchii z §3.1. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Jeśli odniesienie jest niejednoznaczne, czat prosi o doprecyzowanie i zachowuje ostatnią zaakceptowaną interpretację. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
+
+Na potrzeby prototypu wybieramy wariant z §3.3, w którym oddzielny enkoder oblicza embeddingi wskazanych pól tekstowych po walidacji JSON. Wynikowy JSON zachowuje jawne wartości pól i przypisuje wektor do konkretnego pola wraz z identyfikatorem i wersją enkodera oraz wymiarem wektora. Liczby, jednostki i identyfikatory pozostają jawne także po edycji. Dobór modeli i docelowy format transmisji pozostają otwarte.
+
+#### Plan katalogu scenariuszy
+
+W katalogu głównym repozytorium planowany jest folder `scenarios/`. Każdy plik ma grupować rozmowy o zbliżonym przebiegu i zawierać wiele naturalnych sformułowań, w tym skróty, parafrazy oraz odwołania do wcześniejszych tur.
+
+| Planowany plik | Przykładowa zawartość |
+| --- | --- |
+| `scenarios/inspection.yaml` | Polecenia rozpoczęcia inspekcji oraz różne sposoby opisania tego samego zakresu prac. |
+| `scenarios/inspection_edits.yaml` | Rozmowy wieloturowe ze zmianą kolejności, pominięciem elementu i kolejną korektą. |
+| `scenarios/clarifications.yaml` | Polecenia niejednoznaczne, oczekiwane pytanie i odpowiedź operatora rozwiązująca niejasność. |
+
+Każda rozmowa ma identyfikator i uporządkowaną listę tur. Tura określa czas w sekundach i tekst lub listę równoważnych wypowiedzi. Kolejne tury jednej rozmowy muszą mieć sens dla każdego jej wariantu. Warianty prowadzące do innej odpowiedzi operatora zapisujemy jako osobne rozmowy. Odtwarzacz ma zapisywać identyfikator rozmowy, ziarno i faktycznie wybrane zdania, aby można było powtórzyć dokładną sekwencję wejść.
+
+Kryterium odbioru jest wspólny test obu wejść. Dla tych samych wypowiedzi i tych samych atrap modeli CLI oraz odtwarzacz mają po każdej turze zwrócić równoważny JSON albo poprosić o to samo doprecyzowanie. Jakość rzeczywistego modelu oceniamy osobno, porównując znaczenie pól z oczekiwanym wynikiem scenariusza. Oczekiwania służą wyłącznie do oceny i pozostają poza kontekstem przekazywanym modelowi.
+
 ## 4. Dron
 
 Na ten moment rozważane są dwie konfiguracje drona:
@@ -235,6 +260,15 @@ Grupy zależności:
 | `dev` | Trening i testowanie. |
 
 ### 8.2. Organizacja kodu
+
+Moduł rozmowy operatora opisany w §3.5 będzie rozwijany w tym repozytorium jako część stacji naziemnej. Planowane rozmieszczenie:
+
+| Ścieżka | Odpowiedzialność |
+| --- | --- |
+| `src/uav_onboard_planner/ground_station/` | Obsługa sesji rozmowy, walidacja interpretacji poleceń, adaptery System One i enkodera oraz oba wejścia do sesji (CLI i odtwarzacz YAML). |
+| `configs/ground_station/` | Konfiguracja adapterów modeli używanych przez stację naziemną. |
+| `scenarios/` | Wersjonowane rozmowy operatora, ich warianty i oczekiwane wyniki opisane w §3.5. |
+| `tests/ground_station/` | Testy interpretacji i edycji poleceń oraz zgodności obu wejść do sesji. |
 
 - Priorytetem jest poprawność implementacji.
 - Logika poszczególnych modułów jest rozdzielona.
