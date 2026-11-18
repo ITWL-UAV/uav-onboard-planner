@@ -12,6 +12,9 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = []
 
+[project.optional-dependencies]
+nlp = ["pyyaml>=6,<7", "torch>=2.5,<3", "transformers>=5.23,<6"]
+
 [dependency-groups]
 basic = []
 dev = [

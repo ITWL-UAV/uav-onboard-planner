@@ -1,0 +1,25 @@
+schema_version: 1
+SYSTEM:
+  source: profile
+  default_text: Help building owners and maintenance teams document the exterior condition of buildings.
+  fields:
+    purpose: {meaning: Civilian exterior inspection purpose, type: text, required: true, embed: true}
+GENERAL_INSTRUCTION:
+  source: profile
+  default_text: Document the condition of the designated building exterior.
+  fields:
+    objective: {meaning: Default inspection objective, type: text, required: true, embed: true}
+USER_INSTRUCTION:
+  source: operator
+  default_text: null
+  fields:
+    objective: {meaning: Exterior inspection objective assigned by the operator, type: text, required: true, embed: true}
+    sites: {meaning: Ordered unique sites explicitly named by the operator, type: text_list, required: true, embed: true}
+    constraints: {meaning: Explicit constraints including numbers and units, type: text_list, required: false, embed: true}
+USER_PROMPT:
+  source: operator
+  default_text: null
+  fields:
+    change: {meaning: Requested adjustment to the active inspection, type: text, required: true, embed: true}
+    sites: {meaning: Complete ordered list of unique sites after applying the edit to the latest accepted list, type: text_list, required: true, embed: true}
+    constraints: {meaning: Explicit changes to constraints including numbers and units, type: text_list, required: false, embed: true}

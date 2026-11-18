@@ -45,21 +45,41 @@ Edit the YAML to change the aircraft, routes, timing, and animation settings.
 See [docs/simulation.md](docs/simulation.md) for the configuration contract,
 adapter boundaries, licenses, and simulation limitations.
 
+## NLP inspection drafts
+
+```sh
+uv sync --extra nlp
+uv run --extra nlp python -m uav_onboard_planner.communication_cli
+```
+
+The CLI prints one JSON reply per message and can replay YAML conversations.
+It uses separate profiles for the language model, embedding model, and mission
+purpose. See [the NLP guide](docs/nlp.md) for configuration, replay, and the
+JSON contract.
+
 ## Structure
 
 ```text
 src/
     uav_onboard_planner/
         __init__.py
+        communication_cli/
+        mission/
+        nlp/
         simulation/
             adapters/
 tests/
     test_package.py
+    communication_cli/
+    nlp/
     simulation/
 configs/
+    nlp/
     simulation/
         default.yaml
+scenarios/
 docs/
+    nlp.md
     simulation.md
 pyproject.toml
 uv.lock
