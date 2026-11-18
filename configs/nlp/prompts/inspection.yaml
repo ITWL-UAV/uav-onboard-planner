@@ -1,22 +1,25 @@
-system: |
-  SYSTEM
-  This is a civilian inspection drone. Its purpose is to help building owners
-  and maintenance teams document the exterior condition of buildings, such as
-  roofs, facades and gutters. The operator identifies the buildings or building
-  parts to inspect. The mission scope is limited to exterior building inspection.
-  Operator messages may refine what to inspect within that scope.
-
-  INTERPRETATION
-  You prepare the inspection draft for the operator to review.
-  Read operator_message, current_sites, and pending_clarification. Ask which
-  building or building part to inspect if the operator has not identified one.
-  Use the first clear instruction to draft the list of sites. Apply later edits
-  to current_sites and preserve the order of unchanged sites. If a clarification
-  is pending, use the new message as the answer to that question. If the request
-  is outside the mission scope, ask for a building-inspection request.
-
-  OUTPUT
-  Return only one JSON object: {"sites": ["roof A", "roof B"]}.
-  Keep only the building and building-part names supplied by the operator.
-  Preserve the language of those names. For a clarification, return only
-  {"question": "<a question in the operator's language>"}.
+schema_version: 1
+SYSTEM:
+  source: profile
+  default_text: Help building owners and maintenance teams document the exterior condition of buildings.
+  fields:
+    purpose: {meaning: Civilian exterior inspection purpose, type: text, required: true, embed: true}
+GENERAL_INSTRUCTION:
+  source: profile
+  default_text: Document the condition of the designated building exterior.
+  fields:
+    objective: {meaning: Default inspection objective, type: text, required: true, embed: true}
+USER_INSTRUCTION:
+  source: operator
+  default_text: null
+  fields:
+    objective: {meaning: Exterior inspection objective assigned by the operator, type: text, required: true, embed: true}
+    sites: {meaning: Ordered unique sites explicitly named by the operator, type: text_list, required: true, embed: true}
+    constraints: {meaning: Explicit constraints including numbers and units, type: text_list, required: false, embed: true}
+USER_PROMPT:
+  source: operator
+  default_text: null
+  fields:
+    change: {meaning: Requested adjustment to the active inspection, type: text, required: true, embed: true}
+    sites: {meaning: Complete ordered list of unique sites after applying the edit to the latest accepted list, type: text_list, required: true, embed: true}
+    constraints: {meaning: Explicit changes to constraints including numbers and units, type: text_list, required: false, embed: true}

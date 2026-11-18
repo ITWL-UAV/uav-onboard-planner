@@ -1,7 +1,9 @@
 from configparser import ConfigParser, SectionProxy
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Self
+from typing import Literal, Self
+
+from ..mission.instructions import InstructionType
 
 
 @dataclass(frozen=True)
@@ -90,12 +92,19 @@ class EmbeddingConfig(ModelConfig):
 
 
 def load_system_prompt(path: Path) -> str:
+    return _legacy_prompt(path, _load_prompt_yaml(path))
+
+
+def _load_prompt_yaml(path: Path) -> object:
     import yaml
 
     try:
-        data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as error:
         raise ValueError(f"{path}: invalid prompt YAML") from error
+
+
+def _legacy_prompt(path: Path, data: object) -> str:
     if (
         not isinstance(data, dict)
         or set(data) != {"system"}
@@ -104,3 +113,87 @@ def load_system_prompt(path: Path) -> str:
     ):
         raise ValueError(f"{path}: expected a nonempty 'system' prompt")
     return data["system"]
+
+
+@dataclass(frozen=True)
+class Field:
+    meaning: str
+    type: Literal["text", "text_list"]
+    required: bool
+    embed: bool
+
+
+@dataclass(frozen=True)
+class Prompt:
+    default_text: str | None
+    fields: dict[str, Field]
+
+
+@dataclass(frozen=True)
+class PromptProfile:
+    schema_version: int
+    prompts: dict[InstructionType, Prompt]
+
+
+def load_prompt(path: Path) -> PromptProfile | str:
+    data = _load_prompt_yaml(path)
+    if isinstance(data, dict) and set(data) == {"system"}:
+        return _legacy_prompt(path, data)
+
+    kinds: tuple[InstructionType, ...] = (
+        "SYSTEM",
+        "GENERAL_INSTRUCTION",
+        "USER_INSTRUCTION",
+        "USER_PROMPT",
+    )
+    if (
+        not isinstance(data, dict)
+        or set(data) != {"schema_version", *kinds}
+        or type(data["schema_version"]) is not int
+        or data["schema_version"] != 1
+    ):
+        raise ValueError(
+            f"{path}: expected schema_version 1 and four instruction types"
+        )
+
+    prompts: dict[InstructionType, Prompt] = {}
+    for kind in kinds:
+        section = data[kind]
+        source = "profile" if kind in ("SYSTEM", "GENERAL_INSTRUCTION") else "operator"
+        if (
+            not isinstance(section, dict)
+            or set(section) != {"source", "default_text", "fields"}
+            or section["source"] != source
+        ):
+            raise ValueError(f"{path}: invalid {kind} section")
+
+        default = section["default_text"]
+        if source == "profile":
+            if not isinstance(default, str) or not default.strip():
+                raise ValueError(f"{path}: {kind}.default_text must be nonempty")
+        elif default is not None:
+            raise ValueError(f"{path}: {kind}.default_text must be null")
+
+        definitions = section["fields"]
+        if not isinstance(definitions, dict) or not definitions:
+            raise ValueError(f"{path}: {kind}.fields must define at least one field")
+        prompt_fields: dict[str, Field] = {}
+        for name, field in definitions.items():
+            if (
+                not isinstance(name, str)
+                or not name.strip()
+                or name == "question"
+                or not isinstance(field, dict)
+                or set(field) != {"meaning", "type", "required", "embed"}
+                or not isinstance(field["meaning"], str)
+                or not field["meaning"].strip()
+                or field["type"] not in ("text", "text_list")
+                or type(field["required"]) is not bool
+                or type(field["embed"]) is not bool
+            ):
+                raise ValueError(f"{path}: invalid field definition {kind}.{name}")
+            prompt_fields[name] = Field(
+                field["meaning"], field["type"], field["required"], field["embed"]
+            )
+        prompts[kind] = Prompt(default, prompt_fields)
+    return PromptProfile(data["schema_version"], prompts)

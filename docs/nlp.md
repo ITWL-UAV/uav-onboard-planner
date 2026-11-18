@@ -7,11 +7,14 @@ oblicza jeden embedding na każde miejsce.
 
 ## Uruchomienie
 
+Moduł `uav_onboard_planner.communication_cli` przyjmuje wypowiedzi operatora
+w terminalu i wyświetla wynik sesji NLP.
+
 Z katalogu głównego repozytorium:
 
 ```sh
 uv sync --extra nlp
-uv run --extra nlp python -m uav_onboard_planner.nlp
+uv run --extra nlp python -m uav_onboard_planner.communication_cli
 ```
 
 Wpisz np. „Zaplanuj inspekcję dachu A i dachu B”, a potem „Jednak pomiń
@@ -26,7 +29,7 @@ Face. Oba modele działają na urządzeniu wskazanym w ich profilach.
 | --- | --- |
 | [System One](../configs/nlp/systemone/default.ini) | Identyfikator modelu z Hugging Face, rewizja, urządzenie, precyzja `bfloat16` lub `float16`, łączny limit tokenów wejścia i generacji, limit generacji, ścieżka promptu. |
 | [Embeddingi](../configs/nlp/embeddings/default.ini) | Model i rewizja, urządzenie, precyzja, limit tokenów na tekst, rozmiar partii, pooling i normalizacja. |
-| [Prompt](../configs/nlp/prompts/inspection.yaml) | Angielska dyrektywa określająca przeznaczenie drona oraz reguły interpretacji i wyjścia JSON. Ścieżka w profilu System One jest względna wobec tego profilu. |
+| [Profil przeznaczenia](../configs/nlp/prompts/inspection.yaml) | Teksty domyślne i schematy pól dla czterech typów instrukcji. Ścieżka w profilu System One jest względna wobec tego profilu. |
 
 Profil można podmienić przez `--systemone-config` albo `--embedding-config`.
 Ustawienie `device = auto` wybiera CUDA, MPS lub CPU w tej kolejności.
@@ -42,9 +45,21 @@ tokenów. Sprawdź wymagane pooling i normalizację na karcie wybranego modelu.
 
 ## Wynik
 
-Szkic ma `schema_version`, typ instrukcji i pole `draft.sites` z jawną
-listą miejsc. `embeddings.fields.sites` zawiera wektory w tej samej kolejności.
-Obiekt `embeddings` podaje identyfikator modelu, rewizję i liczbę wymiarów.
-Pierwsza przyjęta instrukcja ma typ `USER_INSTRUCTION`, a zmiany typu
-`USER_PROMPT` aktualizują szkic. Pytanie o doprecyzowanie nie modyfikuje
-zaakceptowanej listy i nie wywołuje enkodera.
+Przy starcie sesja interpretuje `SYSTEM` i `GENERAL_INSTRUCTION` z profilu.
+Pierwsza przyjęta wypowiedź staje się `USER_INSTRUCTION` i zastępuje domyślne
+zadanie. Kolejne wypowiedzi stają się zmianami `USER_PROMPT`. Sesja przekazuje
+modelowi pierwotne polecenie, zaakceptowane zmiany i oczekujące doprecyzowanie.
+Pytanie o doprecyzowanie pozostawia zaakceptowany stan i nie wywołuje enkodera.
+
+Szkic zawiera `schema_version`, `instruction` oraz jawne pola w `draft`.
+Pole `embeddings` pojawia się, jeśli profil wyznacza obecne pola do wektoryzacji.
+Zawiera identyfikator modelu, rewizję, wymiar i wektory według nazw pól.
+Pole tekstowe dostaje jeden wektor. Dla listy tekstów, np. `draft.sites`,
+`embeddings.fields.sites` zachowuje kolejność elementów. W profilu inspekcji
+nakładane ograniczenia zachowują zapisane liczby i jednostki w jawnej treści.
+
+Aby dodać profil, zdefiniuj cztery sekcje jak w przykładzie inspekcji. W
+`fields` określ znaczenie pola, typ `text` lub `text_list`, wymagalność
+i wektoryzację. Sekcje operatora mają `default_text: null`; pozostałe
+zawierają tekst domyślny. Istniejące pliki z pojedynczym kluczem `system`
+nadal działają z wcześniejszym formatem szkicu listy miejsc.
