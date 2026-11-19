@@ -34,9 +34,13 @@ inną lokalizację. Dane w `weights/` są ignorowane przez Git.
 | --- | --- |
 | [System One](../configs/nlp/systemone/default.ini) | Identyfikator modelu z Hugging Face, rewizja, urządzenie, precyzja `bfloat16` lub `float16`, limit kontekstu i ścieżka promptu. |
 | [Embeddingi](../configs/nlp/embeddings/default.ini) | Model i rewizja, urządzenie, precyzja, limit tokenów na tekst, rozmiar partii, pooling i normalizacja. |
-| [Profil transportowy](../configs/nlp/prompts/cargo_template.yaml) | Teksty domyślne i pytania dla misji transportowej. |
+| [Profil domyślny](../configs/nlp/prompts/default_template.yaml) | Teksty i pytania używane przy domyślnym uruchomieniu CLI. |
+| [Profil transportowy](../configs/nlp/prompts/cargo_template.yaml) | Alternatywny profil misji transportowej. |
 
-Profil można podmienić przez `--systemone-config` albo `--embedding-config`.
+Profil misji wskazuje `prompt_file` w pliku INI System One. Ścieżka
+względna jest liczona od katalogu tego pliku. Własne ustawienia można
+przekazać przez `--systemone-config`, a ustawienia enkodera przez
+`--embedding-config`.
 Ustawienie `device = auto` wybiera CUDA, MPS lub CPU w tej kolejności.
 Przekroczenie `context_size` powoduje jawny błąd. W razie potrzeby przypnij
 konkretny commit Hugging Face w `revision`.
