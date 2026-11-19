@@ -1,82 +1,51 @@
 import json
 
-from uav_onboard_planner.nlp.huggingface import _extract_fields
+from uav_onboard_planner.nlp.huggingface import Options, _extract_fields
+from uav_onboard_planner.nlp.session import Interpretation
 
 
-def test_extraction_asks_one_question_per_field_and_parses_text_answers() -> None:
-    prompts = []
-    answers = iter(["transport", "cargo: crate A\ndestination: point B", "N/A"])
+def test_extraction_selects_verbatim_text_and_records_scores() -> None:
+    questions = iter(["What action?", "What destination?", "What limits?"])
+    answers = iter([("Transport", 0.95), ("point B?", 0.8), (None, 0.9)])
 
-    def generate(prompt: str) -> str:
-        prompts.append(prompt)
-        return next(answers)
-
-    context = json.dumps(
-        {
-            "operator_message": "Deliver crate A to point B.",
-            "fields": {
-                "activity": {"question": "What action?", "type": "text"},
-                "target": {"question": "What does it concern?", "type": "text_map"},
-                "constraints": {"question": "What limits apply?", "type": "text_list"},
-            },
-        }
-    )
-
-    assert _extract_fields(context, generate) == {
-        "activity": "transport",
-        "target": {"cargo": "crate A", "destination": "point B"},
-    }
-    assert len(prompts) == 3
-    for prompt, question in zip(
-        prompts,
-        ["What action?", "What does it concern?", "What limits apply?"],
-        strict=True,
-    ):
-        assert question in prompt
-        assert "Deliver crate A to point B." in prompt
-        assert "JSON" not in prompt
-
-
-def test_extraction_preserves_list_order_and_stops_at_clarification() -> None:
-    context = json.dumps(
-        {
-            "fields": {
-                "target": {"question": "Which sites?", "type": "text_map"},
-                "constraints": {"question": "What limits?", "type": "text_list"},
-            },
-        }
-    )
-    answers = iter(["sites[]: roof B\nsites[]: roof A", "15 min\nDaylight only"])
-    assert _extract_fields(context, lambda _: next(answers)) == {
-        "target": {"sites": ["roof B", "roof A"]},
-        "constraints": ["15 min", "Daylight only"],
-    }
-
-    clarification = iter(["Clarify: Which roof?"])
-    assert _extract_fields(context, lambda _: next(clarification)) == {
-        "question": "Which roof?"
-    }
-
-
-def test_first_instruction_extracts_one_target_phrase_from_operator() -> None:
-    prompts = []
-    answers = iter(["crate A to point B"])
-
-    def generate(prompt: str) -> str:
-        prompts.append(prompt)
-        return next(answers)
+    def choose(prompt: str, options: Options) -> tuple[int, float]:
+        assert next(questions) in prompt
+        assert "designated delivery point" not in prompt
+        quote, score = next(answers)
+        return options.index(quote), score
 
     context = json.dumps(
         {
             "instruction": "USER_INSTRUCTION",
+            "operator_message": "Transport crate A to point B?",
             "active_instruction": {"text": "Use the designated delivery point"},
-            "operator_message": "Deliver crate A to point B.",
             "fields": {
-                "target": {"question": "What does the action concern?", "type": "text"},
+                "activity": {"question": "What action?", "type": "text"},
+                "target": {"question": "What destination?", "type": "text"},
+                "constraints": {"question": "What limits?", "type": "text_list"},
             },
         }
     )
-    assert _extract_fields(context, generate) == {"target": "crate A to point B"}
-    assert len(prompts) == 1
-    assert "What does the action concern?" in prompts[0]
-    assert "designated delivery point" not in prompts[0]
+    assert _extract_fields(context, choose) == Interpretation(
+        {"activity": "Transport", "target": "point B?"},
+        {"activity": 0.95, "target": 0.8, "constraints": 0.9},
+    )
+
+
+def test_extraction_preserves_order_in_a_quoted_list() -> None:
+    message = "Daylight only.\n15 min."
+    context = json.dumps(
+        {
+            "operator_message": message,
+            "fields": {
+                "constraints": {"question": "What limits?", "type": "text_list"}
+            },
+        }
+    )
+
+    def choose(prompt: str, options: Options) -> tuple[int, float]:
+        return options.index(message), 0.9
+
+    assert _extract_fields(context, choose).fields == {
+        "constraints": ["Daylight only.", "15 min."]
+    }

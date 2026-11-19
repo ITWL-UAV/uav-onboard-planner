@@ -13,7 +13,7 @@ from ..mission.instructions import (
     Mission,
     TextValue,
 )
-from .config import PromptProfile, parse_fields
+from .config import DEFAULT_MIN_CONFIDENCE, PromptProfile, parse_fields
 
 type Vector = tuple[float, ...]
 type VectorValue = Vector | tuple[Vector, ...]
@@ -55,6 +55,12 @@ class Encoder(Protocol):
 
 
 @dataclass(frozen=True)
+class Interpretation:
+    fields: dict[str, object]
+    confidence: dict[str, float]
+
+
+@dataclass(frozen=True)
 class Reply:
     instruction: InstructionType | None = None
     sites: tuple[str, ...] = ()
@@ -63,30 +69,60 @@ class Reply:
     schema_version: int = 1
     draft: dict[str, FieldValue] | None = None
     vectors_by_field: dict[str, FieldVectors] | None = None
+    field_names: tuple[str, ...] = ()
+    missing_required: tuple[str, ...] = ()
+    confidence: dict[str, float] | None = None
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE
 
-    def to_json(self) -> str:
-        data: dict[str, object] = {"schema_version": self.schema_version}
-        if self.question is not None:
-            data["question"] = self.question
-        else:
-            data["instruction"] = self.instruction
-            data["draft"] = (
-                self.draft
-                if self.draft is not None
-                else {"task": "inspection", "sites": self.sites}
-            )
-            if self.embeddings is not None:
-                data["embeddings"] = {
-                    "model": self.embeddings.model,
-                    "revision": self.embeddings.revision,
-                    "dimension": self.embeddings.dimension,
-                    "fields": (
-                        self.vectors_by_field
-                        if self.vectors_by_field is not None
-                        else {"sites": self.embeddings.vectors}
-                    ),
-                }
-        return json.dumps(data, ensure_ascii=False, allow_nan=False)
+    @property
+    def low_confidence(self) -> tuple[str, ...]:
+        return tuple(
+            name
+            for name, score in (self.confidence or {}).items()
+            if score < self.min_confidence
+        )
+
+    @property
+    def needs_clarification(self) -> bool:
+        return bool(self.missing_required or self.low_confidence)
+
+    def to_json(
+        self, *, indent: int | None = None, include_vectors: bool = True
+    ) -> str:
+        draft = (
+            self.draft
+            if self.draft is not None
+            else {"task": "inspection", "sites": self.sites}
+        )
+        data: dict[str, object] = {
+            "schema_version": self.schema_version,
+            "instruction": self.instruction,
+            "draft": {name: draft.get(name) for name in self.field_names}
+            if self.field_names
+            else draft,
+        }
+        if self.missing_required:
+            data["missing_required"] = self.missing_required
+        if self.confidence is not None:
+            data["confidence"] = self.confidence
+        if self.low_confidence:
+            data["low_confidence"] = self.low_confidence
+        if self.needs_clarification:
+            data["needs_clarification"] = True
+        if self.embeddings is not None:
+            embeddings: dict[str, object] = {
+                "model": self.embeddings.model,
+                "revision": self.embeddings.revision,
+                "dimension": self.embeddings.dimension,
+            }
+            if include_vectors:
+                embeddings["fields"] = (
+                    self.vectors_by_field
+                    if self.vectors_by_field is not None
+                    else {"sites": self.embeddings.vectors}
+                )
+            data["embeddings"] = embeddings
+        return json.dumps(data, ensure_ascii=False, allow_nan=False, indent=indent)
 
 
 def _question(proposal: object) -> str | None:
@@ -144,10 +180,6 @@ class Session:
             return self._submit(text, self.mission)
         return self._submit_legacy(text)
 
-    def _ask(self, text: str, question: str) -> Reply:
-        self._clarification += (text, question)
-        return Reply(question=question)
-
     def _encode(self, texts: tuple[str, ...]) -> Embeddings:
         embeddings = self._encoder.encode(texts)
         if (
@@ -164,6 +196,9 @@ class Session:
         return embeddings
 
     def _submit_legacy(self, text: str) -> Reply:
+        instruction: InstructionType = (
+            "USER_INSTRUCTION" if self._original_instruction is None else "USER_PROMPT"
+        )
         proposal = self._interpreter.interpret(
             json.dumps(
                 {
@@ -179,9 +214,22 @@ class Session:
                 ensure_ascii=False,
             )
         )
+        confidence = (
+            proposal.confidence if isinstance(proposal, Interpretation) else None
+        )
+        if isinstance(proposal, Interpretation):
+            proposal = proposal.fields
         question = _question(proposal)
-        if question is not None:
-            return self._ask(text, question)
+        if question is not None or proposal == {}:
+            self._clarification += (text, question) if question is not None else (text,)
+            return Reply(
+                instruction=instruction,
+                question=question,
+                draft={"task": "inspection"},
+                field_names=("task", "sites"),
+                missing_required=("sites",),
+                confidence=confidence,
+            )
         if (
             not isinstance(proposal, dict)
             or set(proposal) != {"sites"}
@@ -197,21 +245,23 @@ class Session:
         sites: tuple[str, ...] = tuple(site.strip() for site in proposal["sites"])
         if len(set(sites)) != len(sites):
             raise ValueError("szkic zawiera powtórzone miejsca")
+        if any(score < DEFAULT_MIN_CONFIDENCE for score in (confidence or {}).values()):
+            return Reply(instruction, sites, confidence=confidence)
         embeddings = self._encode(sites)
-        instruction: InstructionType = "USER_PROMPT"
         if self._original_instruction is None:
-            instruction = "USER_INSTRUCTION"
             self._original_instruction = (
                 self._clarification[0] if self._clarification else text
             )
         self._sites = sites
         self._clarification = ()
-        return Reply(instruction, sites, embeddings)
+        return Reply(instruction, sites, embeddings, confidence=confidence)
 
     def _submit(self, text: str, mission: Mission) -> Reply:
         reply = self._interpret(text, mission)
-        if reply.question is not None:
-            return self._ask(text, reply.question)
+        if reply.needs_clarification:
+            if reply.confidence is None:
+                self._clarification += (text,)
+            return reply
         assert reply.draft is not None
         original = self._clarification[0] if self._clarification else text
         mission.accept(Instruction(original, MappingProxyType(deepcopy(reply.draft))))
@@ -241,19 +291,28 @@ class Session:
                 ensure_ascii=False,
             )
         )
-        question = _question(proposal)
-        if question is not None:
-            return Reply(question=question, schema_version=profile.schema_version)
+        confidence = (
+            proposal.confidence if isinstance(proposal, Interpretation) else None
+        )
+        if isinstance(proposal, Interpretation):
+            proposal = proposal.fields
         draft = parse_fields(prompt.fields, proposal)
-        missing = [
+        missing = tuple(
             name
             for name, field in prompt.fields.items()
             if field.required and name not in draft
-        ]
-        if missing:
+        )
+        if missing or any(
+            score < profile.min_confidence for score in (confidence or {}).values()
+        ):
             return Reply(
-                question=f"Could you clarify: {', '.join(missing)}?",
+                instruction=kind,
                 schema_version=profile.schema_version,
+                draft=draft,
+                field_names=tuple(prompt.fields),
+                missing_required=missing,
+                confidence=confidence,
+                min_confidence=profile.min_confidence,
             )
 
         texts = tuple(
@@ -281,4 +340,7 @@ class Session:
             schema_version=profile.schema_version,
             draft=draft,
             vectors_by_field=vectors_by_field,
+            field_names=tuple(prompt.fields),
+            confidence=confidence,
+            min_confidence=profile.min_confidence,
         )

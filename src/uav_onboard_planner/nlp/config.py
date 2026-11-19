@@ -11,6 +11,8 @@ from ..mission.instructions import (
     TextMap,
 )
 
+DEFAULT_MIN_CONFIDENCE = 0.6
+
 
 @dataclass(frozen=True)
 class ModelConfig:
@@ -136,6 +138,7 @@ class Prompt:
 class PromptProfile:
     schema_version: int
     prompts: dict[InstructionType, Prompt]
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE
 
 
 def parse_text_map(data: object) -> TextMap:
@@ -221,7 +224,7 @@ def _field_map(data: object, label: str) -> dict[str, object]:
 
 
 def _load_compact_profile(
-    data: Mapping[str, object], version: int, path: Path
+    data: Mapping[str, object], version: int, path: Path, min_confidence: float
 ) -> PromptProfile:
     prompts: dict[InstructionType, Prompt] = {}
     for kind in ("SYSTEM", "GENERAL_INSTRUCTION"):
@@ -290,7 +293,7 @@ def _load_compact_profile(
             f"{path}: GENERAL_INSTRUCTION.fields: unknown fields: {invalid}"
         )
     prompts["GENERAL_INSTRUCTION"] = Prompt(general.default_text, fields, defaults)
-    return PromptProfile(version, prompts)
+    return PromptProfile(version, prompts, min_confidence)
 
 
 def load_prompt(path: Path) -> PromptProfile | str:
@@ -304,18 +307,25 @@ def load_prompt(path: Path) -> PromptProfile | str:
         "USER_INSTRUCTION",
         "USER_PROMPT",
     )
+    profile_keys = {"schema_version", *kinds}
     if (
         not isinstance(data, dict)
-        or set(data) != {"schema_version", *kinds}
+        or not profile_keys <= data.keys()
+        or data.keys() - profile_keys - {"min_confidence"}
         or type(data["schema_version"]) is not int
         or data["schema_version"] != 1
     ):
         raise ValueError(
             f"{path}: expected schema_version 1 and four instruction types"
         )
+    min_confidence = data.get("min_confidence", DEFAULT_MIN_CONFIDENCE)
+    if type(min_confidence) not in (int, float) or not 0 <= min_confidence <= 1:
+        raise ValueError(f"{path}: min_confidence must be a number between 0 and 1")
     system = data["SYSTEM"]
     if isinstance(system, dict) and "default_text" not in system:
-        return _load_compact_profile(data, data["schema_version"], path)
+        return _load_compact_profile(
+            data, data["schema_version"], path, float(min_confidence)
+        )
 
     section_keys = {"source", "default_text"}
     with_fields = section_keys | {"fields"}
@@ -393,4 +403,4 @@ def load_prompt(path: Path) -> PromptProfile | str:
         prompts["GENERAL_INSTRUCTION"] = Prompt(
             general.default_text, instruction_fields, defaults
         )
-    return PromptProfile(data["schema_version"], prompts)
+    return PromptProfile(data["schema_version"], prompts, float(min_confidence))

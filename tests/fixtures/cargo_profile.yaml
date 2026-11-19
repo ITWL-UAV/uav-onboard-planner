@@ -1,0 +1,35 @@
+schema_version: 1
+min_confidence: 0.75
+
+SYSTEM:
+  source: profile
+  fields:
+    purpose: Aerial cargo transport.
+
+GENERAL_INSTRUCTION:
+  source: profile
+  fields:
+    activity: Transport cargo.
+    constraints: []
+
+USER_INSTRUCTION:
+  source: operator
+  fields:
+    activity: What is the action verb in the operator's instruction?
+    target: What destination did the operator specify?
+    constraints: What constraints did the operator specify?
+  required:
+    activity: false
+    target: true
+    constraints: false
+
+USER_PROMPT:
+  source: operator
+  fields:
+    change: What change did the operator request?
+    target: What is the target after the requested change?
+    constraints: What changes to the constraints did the operator request?
+  required:
+    change: true
+    target: true
+    constraints: false

@@ -1,6 +1,9 @@
 import json
+import re
 from collections.abc import Callable
 from importlib import import_module
+from itertools import islice, product
+from string import ascii_uppercase
 
 from .config import (
     EmbeddingConfig,
@@ -9,15 +12,10 @@ from .config import (
     SystemOneConfig,
     load_prompt,
 )
-from .session import Embeddings
+from .session import Embeddings, Interpretation
 
-_ANSWER_FORMAT = {
-    "text": "Reply with the answer only, in a short phrase.",
-    "text_list": "Write one item per line without bullets.",
-    "text_map": (
-        "Write one role: value per line. For a list, write role[]: value once per item."
-    ),
-}
+type Options = tuple[str | None, ...]
+type Choose = Callable[[str, Options], tuple[int, float]]
 
 
 def _named_answers(lines: list[str]) -> dict[str, str | list[str]]:
@@ -42,35 +40,47 @@ def _named_answers(lines: list[str]) -> dict[str, str | list[str]]:
     return values
 
 
-def _extract_fields(context: str, generate: Callable[[str], str]) -> dict[str, object]:
+def _extract_fields(context: str, choose: Choose) -> Interpretation:
     request = json.loads(context)
     fields = request.pop("fields")
     if request.get("instruction") == "USER_INSTRUCTION":
         request.pop("active_instruction", None)
     message = request.pop("operator_message", "")
+    words = list(re.finditer(r"\S+", message))
+    if len(words) > 60:
+        raise ValueError(
+            "User prompt is too long to rank its excerpts. Enter a shorter prompt."
+        )
+    options: Options = (
+        None,
+        *dict.fromkeys(
+            message[first.start() : last.end()]
+            for index, first in enumerate(words)
+            for last in words[index:]
+        ),
+    )
     mission = json.dumps(request, ensure_ascii=False)
     result: dict[str, object] = {}
+    confidence: dict[str, float] = {}
     for name, field in fields.items():
         kind = field["type"]
-        answer = generate(
+        index, score = choose(
             f"Mission context:\n{mission}\n\nOperator: {message}\n\n"
-            f"Question: {field['question']}\n{_ANSWER_FORMAT[kind]}\n"
-            "If the information is absent, write N/A. If the operator must clarify, "
-            "write Clarify: followed by the question."
-        ).strip()
-        if not answer or answer.casefold() == "n/a":
-            continue
-        if answer.startswith("Clarify:"):
-            question = answer.removeprefix("Clarify:").strip()
-            if question:
-                return {"question": question}
+            f"Question: {field['question']}",
+            options,
+        )
+        if not 0 <= index < len(options) or not 0 <= score <= 1:
+            raise ValueError("System One returned an invalid choice or confidence")
+        confidence[name] = score
+        answer = options[index]
+        if answer is None:
             continue
         if kind == "text":
             result[name] = answer
         else:
             lines = [line.strip() for line in answer.splitlines() if line.strip()]
             result[name] = _named_answers(lines) if kind == "text_map" else lines
-    return result
+    return Interpretation(result, confidence)
 
 
 class _Runtime:
@@ -125,6 +135,7 @@ class HuggingFaceSystemOne:
             prompt = load_prompt(settings.prompt_file)
         self._legacy_prompt = prompt if isinstance(prompt, str) else None
         self._runtime = _Runtime(settings, generation=True)
+        self._vocabulary = self._runtime.tokenizer.get_vocab()
 
     def interpret(self, context: str) -> object:
         if self._legacy_prompt is not None:
@@ -137,10 +148,30 @@ class HuggingFaceSystemOne:
                 }
             }
             context = json.dumps(request, ensure_ascii=False)
-        return _extract_fields(context, self._generate)
+        return _extract_fields(context, self._choose)
 
-    def _generate(self, message: str) -> str:
+    def _choose(self, message: str, options: Options) -> tuple[int, float]:
         runtime = self._runtime
+        labels = list(
+            islice(
+                (
+                    label
+                    for size in (1, 2, 3)
+                    for letters in product(ascii_uppercase, repeat=size)
+                    if (label := "".join(letters)) in self._vocabulary
+                ),
+                len(options),
+            )
+        )
+        if len(labels) != len(options):
+            raise ValueError("Too many candidate excerpts. Enter a shorter prompt.")
+        choices = "\n".join(
+            f"{label}: {json.dumps(option, ensure_ascii=False) if option is not None else 'No answer in the operator message'}"
+            for label, option in zip(labels, options, strict=True)
+        )
+        message = (
+            f"{message}\n\nChoose the answer option. Return only its label.\n{choices}"
+        )
         prompt = runtime.tokenizer.apply_chat_template(
             [{"role": "user", "content": message}],
             tokenize=False,
@@ -151,15 +182,22 @@ class HuggingFaceSystemOne:
             prompt, add_special_tokens=False, return_tensors="pt"
         ).to(runtime.device)
         input_size = tokens["input_ids"].shape[-1]
-        if input_size + self._settings.max_new_tokens > self._settings.context_size:
-            raise ValueError("polecenie i jego kontekst przekraczają context_size")
-        with runtime.torch.inference_mode():
-            result = runtime.model.generate(
-                **tokens, max_new_tokens=self._settings.max_new_tokens, do_sample=False
+        if input_size >= self._settings.context_size:
+            raise ValueError(
+                "The prompt and candidate excerpts exceed context_size. Enter a shorter prompt."
             )
-        return runtime.tokenizer.decode(
-            result[0, input_size:], skip_special_tokens=True
-        )
+        with runtime.torch.inference_mode():
+            logits = runtime.model(**tokens, use_cache=False, logits_to_keep=1).logits[
+                0, -1
+            ]
+            probabilities = (
+                logits[[self._vocabulary[label] for label in labels]]
+                .float()
+                .softmax(dim=0)
+            )
+            index = probabilities.argmax().item()
+            score = probabilities[index].item()
+        return index, score
 
 
 class HuggingFaceEncoder:

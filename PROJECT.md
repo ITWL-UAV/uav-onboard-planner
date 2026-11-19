@@ -83,10 +83,10 @@ Dodatkowe moduły tradycyjnej stacji kontroli nie będą implementowane w ramach
 
 W pierwszym prototypie stacja naziemna ma przyjmować kolejne wypowiedzi w ramach jednej sesji. Moduł rozmowy ma korzystać z dwóch źródeł tekstu:
 
-- **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie po angielsku, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Transport crate A to point B” może wpisać „Deliver it to point C instead”. CLI pokazuje zaktualizowaną treść polecenia lub pytanie o doprecyzowanie. W demonstracji można również obejrzeć JSON zawierający embeddingi.
+- **CLI podczas inferencji.** Operator wpisuje pierwsze polecenie po angielsku, ogląda jego interpretację jako JSON i może ją zmienić kolejną wiadomością. Na przykład po „Transport crate A to point B” może wpisać „Deliver it to point C instead”. CLI pokazuje pełny szkic JSON, w tym brakujące pola i metadane embeddingów przyjętych poleceń.
 - **Scenariusz YAML.** Odtwarzacz podaje wypowiedzi do tego samego modułu rozmowy w kolejności i chwilach zdefiniowanych w scenariuszu. Czas liczy się od początku epizodu według zegara symulacji. Odtwarzacz przekazuje oryginalny tekst, dzięki czemu test obejmuje również jego interpretację.
 
-System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Zwraca odpowiedzi tekstowe. Moduł rozmowy sprawdza je względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Jeśli odniesienie jest niejednoznaczne, czat prosi o doprecyzowanie i zachowuje ostatnią zaakceptowaną interpretację. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
+System One otrzymuje nową wypowiedź, kontekst rozmowy i osobne pytanie o każde pole. Wybiera dosłowny fragment wypowiedzi albo brak odpowiedzi. Moduł rozmowy sprawdza wynik względem schematu i hierarchii z §3.1, a następnie składa JSON. Pierwsze polecenie operatora ustanawia `USER_INSTRUCTION`, a edycja podczas misji ma zakres `USER_PROMPT`. Brakujące wartości w szkicu otrzymują `null`. Brak wymaganego pola lub wynik poniżej progu `min_confidence` z profilu pozostawia ostatnią zaakceptowaną instrukcję i wymaga precyzyjniejszej wypowiedzi. Polecenia z GUI zachowują pierwszeństwo opisane w §3.2.
 
 Na potrzeby prototypu wybieramy wariant z §3.3, w którym oddzielny enkoder oblicza embeddingi wskazanych pól tekstowych po walidacji JSON. Wynikowy JSON zachowuje jawne wartości pól i przypisuje wektor do konkretnego pola wraz z identyfikatorem i wersją enkodera oraz wymiarem wektora. Liczby, jednostki i identyfikatory pozostają jawne także po edycji. Docelowy format transmisji pozostaje otwarty.
 
@@ -106,6 +106,7 @@ Poniższy przykład pokazuje gotowe wartości w `fields` dla `SYSTEM` i `GENERAL
 
 ```yaml
 schema_version: 1
+min_confidence: 0.6
 SYSTEM:
   source: profile
   fields:
@@ -145,22 +146,17 @@ Stacja przyjmuje `SYSTEM` i `GENERAL_INSTRUCTION` jako gotowy kontekst. Dla wypo
 2. **Hierarchia w domenie misji.** Przetestować start bez operatora, zastąpienie całego domyślnego zadania pierwszą instrukcją i dwie kolejne zmiany wykonania. Po obu zmianach odczyt nadrzędnej instrukcji ma zwracać tę samą treść.
 3. **Interpretacja w module `nlp`.** Podłączyć System One przez port interpretacji, walidować odpowiedzi tekstowe i obsłużyć doprecyzowanie. Test z atrapą obejmuje wczytanie predefiniowanego kontekstu bez wywołania modelu, dodatkowy klucz i niejednoznaczną zmianę.
 4. **Wektoryzacja w module `nlp`.** Podłączyć osobny enkoder i powiązać każdy wektor z jawną wartością. Sprawdzić kolejność elementów listy, pominięcie pustych pól opcjonalnych oraz zachowanie sesji po błędzie enkodera.
-5. **Osobny moduł `communication_cli`.** Operator wpisuje tekst na stacji i widzi przyjęty JSON albo pytanie. CLI przekazuje wypowiedź do tej samej sesji NLP i wyświetla wynik. Reguły hierarchii należą do domeny misji, obsługa modeli do NLP, a transmisja stacja–pokład do modułu `communication`. Test wejścia i wyjścia terminala ma obejmować pierwszą instrukcję i modyfikację podczas misji.
+5. **Osobny moduł `communication_cli`.** Operator wpisuje tekst na stacji i widzi kompletny obiekt JSON ze szkicem. CLI przekazuje wypowiedź do tej samej sesji NLP i wyświetla wynik. Reguły hierarchii należą do domeny misji, obsługa modeli do NLP, a transmisja stacja–pokład do modułu `communication`. Test wejścia i wyjścia terminala ma obejmować pierwszą instrukcję i modyfikację podczas misji.
 6. **Odtwarzanie i odbiór.** Podłączyć scenariusze YAML do tego samego przypadku użycia co CLI. Porównać wyniki po każdej turze według kryterium poniżej, a jakość ekstrakcji rzeczywistych modeli ocenić osobno na parafrazach.
 
 #### Plan katalogu scenariuszy
 
 W katalogu głównym repozytorium planowany jest folder `scenarios/`. Każdy plik ma grupować rozmowy o zbliżonym przebiegu i zawierać wiele naturalnych sformułowań, w tym skróty, parafrazy oraz odwołania do wcześniejszych tur.
 
-| Planowany plik | Przykładowa zawartość |
-| --- | --- |
-| `scenarios/cargo.yaml` | Polecenia transportu ładunku w różnych sformułowaniach. |
-| `scenarios/cargo_edits.yaml` | Rozmowy wieloturowe ze zmianą miejsca dostawy. |
-| `scenarios/clarifications.yaml` | Polecenia niejednoznaczne, oczekiwane pytanie i odpowiedź operatora rozwiązująca niejasność. |
 
 Każda rozmowa ma identyfikator i uporządkowaną listę tur. Tura określa czas w sekundach i tekst lub listę równoważnych wypowiedzi. Kolejne tury jednej rozmowy muszą mieć sens dla każdego jej wariantu. Warianty prowadzące do innej odpowiedzi operatora zapisujemy jako osobne rozmowy. Odtwarzacz ma zapisywać identyfikator rozmowy, ziarno i faktycznie wybrane zdania, aby można było powtórzyć dokładną sekwencję wejść.
 
-Kryterium odbioru jest wspólny test obu wejść. Dla tych samych wypowiedzi i tych samych atrap modeli CLI oraz odtwarzacz mają po każdej turze zwrócić równoważny JSON albo poprosić o to samo doprecyzowanie. Scenariusze przechowują wypowiedzi i czasy. Testy w `tests/` określają oczekiwany typ instrukcji i wartości po każdej turze. Jakość rzeczywistego modelu oceniamy osobno.
+Kryterium odbioru jest wspólny test obu wejść. Dla tych samych wypowiedzi i tych samych atrap modeli CLI oraz odtwarzacz mają po każdej turze zwrócić równoważny JSON. Scenariusze przechowują wypowiedzi i czasy. Testy w `tests/` określają oczekiwany typ instrukcji i wartości po każdej turze. Jakość rzeczywistego modelu oceniamy osobno.
 
 ## 4. Dron
 

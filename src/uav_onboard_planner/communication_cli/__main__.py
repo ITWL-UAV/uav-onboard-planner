@@ -1,7 +1,9 @@
 import argparse
 import json
+import logging
 import sys
 from configparser import Error as ConfigError
+from os import environ
 from pathlib import Path
 from typing import TextIO
 
@@ -14,15 +16,32 @@ from ..nlp.session import Session
 def run_terminal(
     session: Session, source: TextIO, output: TextIO, errors: TextIO
 ) -> None:
+    interactive = source.isatty()
+    needs_clarification = False
     while True:
-        if source.isatty():
-            print("Operator> ", end="", file=errors, flush=True)
+        if interactive:
+            if needs_clarification:
+                print("Enter a more precise prompt.", file=errors)
+            kind = (
+                "USER_INSTRUCTION"
+                if session.user_instruction is None
+                else "USER_PROMPT"
+            )
+            print(kind, file=errors, flush=True)
         line = source.readline()
         if not line:
             return
         if line.strip():
             try:
-                print(session.submit(line.strip()).to_json(), file=output, flush=True)
+                reply = session.submit(line.strip())
+                needs_clarification = reply.needs_clarification
+                print(
+                    reply.to_json(
+                        indent=2 if interactive else None, include_vectors=False
+                    ),
+                    file=output,
+                    flush=True,
+                )
             except ValueError as error:
                 print(f"Błąd: {error}", file=errors)
 
@@ -39,7 +58,7 @@ def run_replay(
         for scheduled in conversation.turns:
             for turn, reply in replay.advance(scheduled.time):
                 delivered.append({"time": turn.time, "text": turn.text})
-                print(reply.to_json(), file=output, flush=True)
+                print(reply.to_json(include_vectors=False), file=output, flush=True)
     finally:
         record = {
             "conversation": conversation.identifier,
@@ -89,13 +108,22 @@ def main() -> int:
         systemone = SystemOneConfig.load(args.systemone_config)
         embeddings = EmbeddingConfig.load(args.embedding_config)
         prompt = load_prompt(systemone.prompt_file)
+        environ.setdefault("HF_HOME", str(Path("weights").resolve()))
+        environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+        environ.setdefault("HF_HUB_VERBOSITY", "error")
+        environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+        logging.getLogger(
+            "torch.distributed.elastic.multiprocessing.redirects"
+        ).setLevel(logging.ERROR)
+        if args.text is None and conversation is None and sys.stdin.isatty():
+            print("Loading models…", file=sys.stderr, flush=True)
         session = Session(
             HuggingFaceSystemOne(systemone, prompt),
             HuggingFaceEncoder(embeddings),
             prompt if isinstance(prompt, PromptProfile) else None,
         )
         if args.text is not None:
-            print(session.submit(args.text).to_json())
+            print(session.submit(args.text).to_json(include_vectors=False))
             return 0
         if conversation is not None:
             run_replay(session, conversation, sys.stdout, sys.stderr)

@@ -77,7 +77,6 @@ configs/
     nlp/
     simulation/
         default.yaml
-scenarios/
 docs/
     nlp.md
     simulation.md
